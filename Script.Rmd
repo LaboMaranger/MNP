@@ -1,0 +1,1533 @@
+---
+title: "Code for MNP paper"
+author: "Richard LaBrie"
+date: "23 janvier 2025"
+output: html_document
+---
+
+#Load libraries
+```{r, include=F}
+#Install all dependancies and source them !!! Does not work on R 3.4.1
+# source("http://bioconductor.org/biocLite.R") #See the website for updated version
+#BiocManager(suppressUpdates = FALSE)
+# if (!require("BiocManager", quietly = TRUE))
+#     install.packages("BiocManager")
+# BiocManager::install(version = "3.17")
+library(BiocManager)
+# BiocManager::install("ShortRead", suppressUpdates = FALSE)
+# BiocManager::install("dada2", suppressUpdates = FALSE)
+# BiocManager::install("phyloseq")
+
+#To remove averything in your global environment
+rm(list = ls())
+
+#BiocManager::install("devtools")
+library("devtools")
+#devtools::install_github("benjjneb/dada2")
+if(!require(snow)) install.packages("snow")
+library("snow")
+if(!require(doParallel)) install.packages("doParallel")
+library("doParallel")
+if(!require(vegan)) install.packages("vegan")
+library("vegan")
+if(!require(plotrix)) install.packages("plotrix")
+library("plotrix")
+if(!require(fields)) install.packages("fields")
+library("fields")
+if(!require(lattice)) install.packages("lattice")
+library("lattice")
+library(ShortRead); packageVersion("ShortRead")
+library(dada2); packageVersion("dada2")
+library(phyloseq); packageVersion("phyloseq")
+if(!require(ggplot2)) install.packages("ggplot2")
+library(ggplot2); packageVersion("ggplot2")
+# library("extrafont")
+library("dplyr")
+library("ie2misc")
+library("segmented")
+library(RColorBrewer)
+library(VennDiagram)
+```
+
+#NO 16S DATA PROCESSING WAS DONE FOR THIS ARTICLE. ALL CURATION STEPS WERE DONE FOR LABRIE ET AL. 2022 AND CAN BE FOUND AT https://github.com/LaboMaranger/MCP
+
+#Note. Figure S1 and S2 were reprinted from the original article
+
+```{R}
+rowSd = function(matrix){
+  output = apply(matrix, 1, sd)
+  return(output)
+}
+rowMd = function(matrix){
+  output = apply(matrix, 1, madstat)
+  return(output)
+}
+colMd = function(matrix){
+  output = apply(matrix, 2, madstat)
+  return(output)
+}
+Alldata = read.csv("./data.csv", sep = ";", row.names = 1)
+
+#Select chemistry data
+Alldata = Alldata[rownames(Alldata) %in%  c("M1T0","M2T0","M3T0","M4T0" ,"M5T0","M6T0","M1T4", "M2T4","M3T4", "M4T4","M5T4","M6T4","M1T7" ,"M2T7","M3T7","M4T7", "M5T7","M6T7","M1T16","M2T16","M3T16","M4T16","M5T16","M6T16","M1T21","M2T21","M3T21","M4T21", "M5T21","M6T21" , "M1T31","M2T31", "M3T31", "M4T31","M5T31", "M6T31","M1T61","M2T61", "M3T61", "M4T61","M5T61", "M6T61", "M1T92","M2T92","M3T92", "M4T92", "M5T92","M6T92", "M1T183","M2T183","M3T183","M4T183","M5T183","M6T183","M1T274","M2T274","M3T274","M4T274","M5T274","M6T274", "M1T548", "M2T548", "M3T548", "M4T548", "M5T548", "M6T548"),]
+
+TDN <- read.csv("./TDN-SD calculation.csv", sep = ";", row.names = 1)
+TDN$sd <- apply(X = TDN[,c(3:5)], MARGIN = 1, FUN = function(x){sd(x,na.rm = T)})
+
+#Figure S.TDN
+#Time here is changed to display Time 0 on a log X-axis. "2" will be changed for "0" in Inkscape and the axis will be broken in inkscape
+TDN[TDN$Time==0,"Time"] <- 2 
+
+#This figure will be added to the nutrient figure using inkscape. 
+{
+  pdf(file = "./Figure S3-TDN.pdf", width=3.5, height=9, useDingbats = F)
+par(mfrow=c(3,1))
+par(mar=c(4,5,3,1)+.1)
+plot(Mean ~ Time, data = TDN[TDN$Treatment=="M1"|TDN$Treatment=="M2",], 
+     las = 1, xlab = "", ylab = expression(TDN~(mu*mol~L^-1)),xaxt = "n",
+     pch = 21, bg = "white", log = "x", ylim = c(15,20))
+
+arrows(x0 = TDN[TDN$Treatment=="M1"|TDN$Treatment=="M2","Time"],
+       y0 = TDN[TDN$Treatment=="M1"|TDN$Treatment=="M2","Mean"] - TDN[TDN$Treatment=="M1"|TDN$Treatment=="M2","sd"],
+       x1 = TDN[TDN$Treatment=="M1"|TDN$Treatment=="M2","Time"],
+       y1 = TDN[TDN$Treatment=="M1"|TDN$Treatment=="M2","Mean"] + TDN[TDN$Treatment=="M1"|TDN$Treatment=="M2","sd"],
+      angle = 90,
+      code = 3,
+      length = 0.05)
+
+plot(Mean ~ Time, data = TDN[TDN$Treatment=="M3"|TDN$Treatment=="M4",], 
+     las = 1, xlab = "", ylab = expression(TDN~(mu*mol~L^-1)),xaxt = "n",
+     pch = 21, bg = "#92c5de", log = "x", ylim = c(15,20))
+
+arrows(x0 = TDN[TDN$Treatment=="M3"|TDN$Treatment=="M4","Time"],
+       y0 = TDN[TDN$Treatment=="M3"|TDN$Treatment=="M4","Mean"] - TDN[TDN$Treatment=="M3"|TDN$Treatment=="M4","sd"],
+       x1 = TDN[TDN$Treatment=="M3"|TDN$Treatment=="M4","Time"],
+       y1 = TDN[TDN$Treatment=="M3"|TDN$Treatment=="M4","Mean"] + TDN[TDN$Treatment=="M3"|TDN$Treatment=="M4","sd"],
+      angle = 90,
+      code = 3,
+      length = 0.05)
+
+plot(Mean ~ Time, data = TDN[TDN$Treatment=="M5"|TDN$Treatment=="M6",], 
+     las = 1, xlab = "Incubation time (days)", ylab = expression(TDN~(mu*mol~L^-1)),
+     pch = 21, bg = "black", log = "x", ylim = c(15,20))
+
+arrows(x0 = TDN[TDN$Treatment=="M5"|TDN$Treatment=="M6","Time"],
+       y0 = TDN[TDN$Treatment=="M5"|TDN$Treatment=="M6","Mean"] - TDN[TDN$Treatment=="M5"|TDN$Treatment=="M6","sd"],
+       x1 = TDN[TDN$Treatment=="M5"|TDN$Treatment=="M6","Time"],
+       y1 = TDN[TDN$Treatment=="M5"|TDN$Treatment=="M6","Mean"] + TDN[TDN$Treatment=="M5"|TDN$Treatment=="M6","sd"],
+      angle = 90,
+      code = 3,
+      length = 0.05)
+dev.off()
+}
+
+
+#test TDN concentration
+summary(aov(Rep1+Rep2+Rep3 ~ Treatment*as.factor(Time), data = TDN))
+
+#By treatment
+summary(aov(Rep1+Rep2+Rep3 ~ Treatment, data = TDN[c(1:25),])) #p>0.05
+summary(aov(Rep1+Rep2+Rep3 ~ Treatment, data = TDN[c(26:49),])) #p>0.05
+summary(aov(Rep1+Rep2+Rep3 ~ Treatment, data = TDN[c(50:74),]))#p>0.05
+
+summary(aov(Mean ~ as.factor(Time), data = TDN[c(1:25),])) #p>0.05
+summary(aov(Mean ~ as.factor(Time), data = TDN[c(26:49),])) #p >0.05
+summary(aov(Mean ~ as.factor(Time), data = TDN[c(50:74),])) #p<0.05 BUT TukeyHSD found no statistical differences (large number of pairwise test. correction for multiple test removes all significance). min(TukeyHSD(aov(Mean ~ as.factor(Time), data = TDN[c(50:74),]))$`as.factor(Time)`[,4]); minimum is 0.08
+
+#Fix some TDN and NO3 values
+Alldata$TDN[25] <- 17.61 #mean value (no measured value)
+Alldata$TDN[47] <- 17.87 #mean value (no measured value)
+Alldata$NO3[46] <- (13.1+13.56)/2 #Mean of 2 closest time points for a conservative estimate. Original value made no sense. Likely a problem during analysis
+Alldata$NO3[50] <- (12.4+12.47)/2 #Mean of 2 closest time points for a conservative estimate. Original value made no sense. Likely a problem during analysis
+
+Alldata$DON = Alldata$TDN-(Alldata$NH4+Alldata$NO3+ Alldata$NO2)
+
+#ANOVA on DON concentrations
+DON.surf <- Alldata$DON[Alldata$Mesocosme=="Surf" & Alldata$Time>30]
+DON.meso <- Alldata$DON[Alldata$Mesocosme=="Shallow" & Alldata$Time>30]
+DON.deep <- Alldata$DON[Alldata$Mesocosme=="Deep" & Alldata$Time>30]
+
+DON.aov.df <- data.frame(DON = c(DON.surf,DON.meso, DON.deep),
+                         Mesocosm = c(rep("Surface", 12),rep("Shallow", 12), rep("Deep",12)))
+DON.aov <- aov(DON ~ Mesocosm, data = DON.aov.df) 
+DON.tuk <- TukeyHSD(DON.aov) #No statistical differences
+
+#Calculate NTHAA 
+Alldata$NTHAA <- Alldata$THAA_.nM./Alldata$DON/10 #/1000*100
+
+#Modeled DOC using Decay curves (See LaBrie et al. 2022)
+DOC.surf.mod <- 11.0523 * exp(-0.05871734 * c(0,4,7,16,21,31,61,92,183,274,548)) + 53.14221
+DOC.meso.mod <- 11 * exp(-0.06115221 * c(0,4,7,16,21,31,61,92,183,274,548)) + 53.09028
+DOC.deep.mod <- 11 * exp(-0.09906782 * c(0,4,7,16,21,31,61,92,183,274,548)) + 53
+Alldata$DOC.mod <- c(DOC.surf.mod,DOC.surf.mod,
+                     DOC.meso.mod,DOC.meso.mod,
+                     DOC.deep.mod,DOC.deep.mod)
+Alldata$DOC.comb <- Alldata$TOC
+Alldata$DOC.comb[which(is.na(Alldata$TOC))] <- Alldata$DOC.mod[which(is.na(Alldata$TOC))]
+Alldata$CN.mod <- Alldata$DOC.comb / Alldata$DON
+
+CN.mod.ave = cbind(rowMeans(cbind(Alldata$CN.mod[c(1:11)],Alldata$CN.mod[c(12:22)])),
+                 rowMeans(cbind(Alldata$CN.mod[c(23:33)],Alldata$CN.mod[c(34:44)])),
+                 rowMeans(cbind(Alldata$CN.mod[c(45:55)],Alldata$CN.mod[c(56:66)]))) 
+CN.mod.md = cbind(rowMd(cbind(Alldata$CN.mod[c(1:11)],Alldata$CN.mod[c(12:22)])),
+                 rowMd(cbind(Alldata$CN.mod[c(23:33)],Alldata$CN.mod[c(34:44)])),
+                 rowMd(cbind(Alldata$CN.mod[c(45:55)],Alldata$CN.mod[c(56:66)])))
+summary(Alldata$CN) # 12.85 (7.98–24.23) 
+#CN.test <- lm(Alldata$CN ~ Alldata$CN.mod) #a = 0.96***, b = 0.495 (ns), R2 = 0.98*** 
+#We will continue with modeled DOC and CN.mod instead of observed values
+
+#Figure S4 C:N ratio
+{
+  jpeg(file = "./Figure S4.jpg",width=5, height = 5, res = 300, units = "in")
+par(mar = c(4,5,2,1)+.1)
+#Bulk DOC:DON
+plot(c(CN.mod.ave) ~ rep(c(0,4,7,16,21,31,61,92,183,274,548),3),
+     xlim = c(0,300), ylim = c(5,25),
+     xlab = "Incubation time (days)", ylab = "",
+     las=1,
+     pch=c(21,22,23)[c(rep(1,11),rep(2,11),rep(3,11))],
+     bg = c("white","#92c5de","black")[c(rep(1,11),rep(2,11),rep(3,11))],
+     cex = 1.8, cex.lab = 1.45, cex.axis = 1.3)
+arrows(rep(c(0,4,7,16,21,31,61,92,183,274,548),3), c(CN.mod.ave) - c(CN.mod.md),
+      rep(c(0,4,7,16,21,31,61,92,183,274,548),3), c(CN.mod.ave) + c(CN.mod.md),
+      angle = 90,
+      code = 3,
+      length = 0.05)
+mtext(expression(C:N~ratio~(bulk~DOM)), side = 2, line = 3, cex = 1.25)
+legend("topright", legend = c("Epipelagic", "Mesopelagic", "Bathypelagic"),
+       pch = c(21,22,23), pt.bg = c("white","#92c5de","black"), pt.cex = 1.5)
+dev.off()
+}
+
+#Calculate averages and mean absolute differences for figures
+DON.ave = cbind(rowMeans(cbind(Alldata$DON[c(1:11)],Alldata$DON[c(12:22)])),
+                 rowMeans(cbind(Alldata$DON[c(23:33)],Alldata$DON[c(34:44)])),
+                 rowMeans(cbind(Alldata$DON[c(45:55)],Alldata$DON[c(56:66)]))) 
+DON.md = cbind(rowMd(cbind(Alldata$DON[c(1:11)],Alldata$DON[c(12:22)])),
+                 rowMd(cbind(Alldata$DON[c(23:33)],Alldata$DON[c(34:44)])),
+                 rowMd(cbind(Alldata$DON[c(45:55)],Alldata$DON[c(56:66)])))
+
+NO3.ave = cbind(rowMeans(cbind(Alldata$NO3[c(1:11)],Alldata$NO3[c(12:22)])),
+                 rowMeans(cbind(Alldata$NO3[c(23:33)],Alldata$NO3[c(34:44)])),
+                 rowMeans(cbind(Alldata$NO3[c(45:55)],Alldata$NO3[c(56:66)]))) 
+NO3.md = cbind(rowMd(cbind(Alldata$NO3[c(1:11)],Alldata$NO3[c(12:22)])),
+                 rowMd(cbind(Alldata$NO3[c(23:33)],Alldata$NO3[c(34:44)])),
+                 rowMd(cbind(Alldata$NO3[c(45:55)],Alldata$NO3[c(56:66)])))
+
+NO2.ave = cbind(rowMeans(cbind(Alldata$NO2[c(1:11)],Alldata$NO2[c(12:22)])),
+                 rowMeans(cbind(Alldata$NO2[c(23:33)],Alldata$NO2[c(34:44)])),
+                 rowMeans(cbind(Alldata$NO2[c(45:55)],Alldata$NO2[c(56:66)]))) 
+NO2.md = cbind(rowMd(cbind(Alldata$NO2[c(1:11)],Alldata$NO2[c(12:22)])),
+                 rowMd(cbind(Alldata$NO2[c(23:33)],Alldata$NO2[c(34:44)])),
+                 rowMd(cbind(Alldata$NO2[c(45:55)],Alldata$NO2[c(56:66)])))
+
+NH4.ave = cbind(rowMeans(cbind(Alldata$NH4[c(1:11)],Alldata$NH4[c(12:22)])),
+                 rowMeans(cbind(Alldata$NH4[c(23:33)],Alldata$NH4[c(34:44)])),
+                 rowMeans(cbind(Alldata$NH4[c(45:55)],Alldata$NH4[c(56:66)]))) 
+NH4.md = cbind(rowMd(cbind(Alldata$NH4[c(1:11)],Alldata$NH4[c(12:22)])),
+                 rowMd(cbind(Alldata$NH4[c(23:33)],Alldata$NH4[c(34:44)])),
+                 rowMd(cbind(Alldata$NH4[c(45:55)],Alldata$NH4[c(56:66)])))
+TDN.ave = cbind(rowMeans(cbind(Alldata$TDN[c(1:11)],Alldata$TDN[c(12:22)])),
+                 rowMeans(cbind(Alldata$TDN[c(23:33)],Alldata$TDN[c(34:44)])),
+                 rowMeans(cbind(Alldata$TDN[c(45:55)],Alldata$TDN[c(56:66)]))) 
+TDN.md = cbind(rowMd(cbind(Alldata$TDN[c(1:11)],Alldata$TDN[c(12:22)])),
+                 rowMd(cbind(Alldata$TDN[c(23:33)],Alldata$TDN[c(34:44)])),
+                 rowMd(cbind(Alldata$TDN[c(45:55)],Alldata$TDN[c(56:66)])))
+
+TDN.sd <- cbind(rowMeans(cbind(TDN$sd[c(1:6,8,9,12,10,11,12)],TDN$sd[c(13:18,20:25)]),na.rm = T), 
+                 rowMeans(cbind(TDN$sd[c(26,27,12,12,28:29,31,32,12,33:35)],TDN$sd[c(36:41,43:48)]),na.rm = T),
+                 rowMeans(cbind(TDN$sd[c(49,50,12,51:53,55:60)],TDN$sd[c(61:66,68:73)]),na.rm = T)) 
+#"12" is added multiple time to add "NA" to missing values 
+TDN.sd <- TDN.sd[-c(4),]#Remove T10; there is no matching DIN measurements
+
+#Propagate the error using TDN standard deviations with detection limits for nutrients
+TDN.propag <- sqrt(TDN.sd^2 + 0.02^2+0.03^2+0.02^2)
+
+#Choose the largest uncertainty between treatment replicate mean absolute difference and the error propagation method
+lst <- list(DON.md, TDN.propag)
+DON.error <- do.call(pmax,lst)
+
+#Figure 1 in the paper
+#Figure was imported into Inkscape to arrange Y-axis title, add the legend and better position panels' letters
+#useDingbats is set to false otherwise points size get shrinked when imported into inkscape
+{
+  pdf(file = "./Figure 1.pdf", width=4, height=7, useDingbats = F)
+par(mfrow=c(3,1))
+par(mar=c(4,5,1.5,1)+.1)
+plot(DON.ave[,1]~c(0,4,7,  16,  21,  31,61,  92, 183,274,548),
+     bg = "white",
+     pch=21,las=1,cex=1.2,cex.lab = 2,cex.axis = 1.8,
+     ylim = c(2.5,8), xlim = c(0,300),
+     xlab = "", ylab = "")
+arrows(c(0,4,7,  16,  21,  31,61,  92, 183,274,548), DON.ave[,1] - DON.error[,1],
+      c(0,4,7,  16,  21,  31,61,  92, 183,274,548), DON.ave[,1] + DON.error[,1],
+      angle = 90,
+      code = 3,
+      length = 0.05)
+mtext(text = "A", side = 3, at = -5)
+
+plot(DON.ave[,2]~c(0,4,7,  16,  21,  31,61,  92, 183,274,548),
+     bg = "#92c5de",
+     pch=21,las=1,cex=1.2,cex.lab = 2,cex.axis = 1.8,
+     ylim = c(2.5,8), xlim = c(0,300),
+     xlab = "", ylab = expression(DON~(mu*mol~L^-1)))
+arrows(c(0,4,7,  16,  21,  31,61,  92, 183,274,548), DON.ave[,2] - DON.error[,2],
+      c(0,4,7,  16,  21,  31,61,  92, 183,274,548), DON.ave[,2] + DON.error[,2],
+      angle = 90,
+      code = 3,
+      length = 0.05)
+mtext(text = "B", side = 3, at = -5)
+
+plot(DON.ave[,3]~c(0,4,7,  16,  21,  31,61,  92, 183,274,548),
+     bg = "black",
+     pch=21,las=1,cex=1.2,cex.lab = 2,cex.axis = 1.8,
+     ylim = c(2.5,8), xlim = c(0,300),
+     xlab = "", ylab = "")
+arrows(c(0,4,7,  16,  21,  31,61,  92, 183,274,548), DON.ave[,3] - DON.error[,3],
+      c(0,4,7,  16,  21,  31,61,  92, 183,274,548), DON.ave[,3] + DON.error[,3],
+      angle = 90,
+      code = 3,
+      length = 0.05)
+mtext(text = "C", side = 3, at = -5)
+
+dev.off()
+}
+##################################DON COMPOSITION####################################
+##################################FDOM#############################################
+
+#Calculate averages and errors for each PARAFAC peak
+F302.ave = cbind(rowMeans(cbind(Alldata$F302[c(1:11)],Alldata$F302[c(12:22)])),
+                 rowMeans(cbind(Alldata$F302[c(23:33)],Alldata$F302[c(34:44)])),
+                 rowMeans(cbind(Alldata$F302[c(45:55)],Alldata$F302[c(56:65,55)]))) #Removed 1 sample because of obvious interference during measurement
+F302.sd = cbind(rowSd(cbind(Alldata$F302[c(1:11)],Alldata$F302[c(12:22)])),
+                 rowSd(cbind(Alldata$F302[c(23:33)],Alldata$F302[c(34:44)])),
+                 rowSd(cbind(Alldata$F302[c(45:55)],Alldata$F302[c(56:65,55)]))) #Removed 1 sample because of obvious interference during measurement
+F302.md = cbind(rowMd(cbind(Alldata$F302[c(1:11)],Alldata$F302[c(12:22)])),
+                 rowMd(cbind(Alldata$F302[c(23:33)],Alldata$F302[c(34:44)])),
+                 rowMd(cbind(Alldata$F302[c(45:55)],Alldata$F302[c(56:65,55)])))
+
+F340.ave = cbind(rowMeans(cbind(Alldata$F340[c(1:11)],Alldata$F340[c(12:22)])),
+                 rowMeans(cbind(Alldata$F340[c(23:33)],Alldata$F340[c(34,24,36:44)])),
+                 rowMeans(cbind(Alldata$F340[c(45:55)],Alldata$F340[c(56:65,55)]))) #Removed 1 sample because of obvious interference during measurement
+F340.sd = cbind(rowSd(cbind(Alldata$F340[c(1:11)],Alldata$F340[c(12:22)])),
+                 rowSd(cbind(Alldata$F340[c(23:33)],Alldata$F340[c(34,24,36:44)])),
+                 rowSd(cbind(Alldata$F340[c(45:55)],Alldata$F340[c(56:65,55)]))) #Removed 1 sample because of obvious interference during measurement
+F340.md = cbind(rowMd(cbind(Alldata$F340[c(1:11)],Alldata$F340[c(12:22)])),
+                 rowMd(cbind(Alldata$F340[c(23:33)],Alldata$F340[c(34,24,36:44)])),
+                 rowMd(cbind(Alldata$F340[c(45:55)],Alldata$F340[c(56:65,55)])))
+
+
+F392.ave = cbind(rowMeans(cbind(Alldata$F392[c(1:11)],Alldata$F392[c(12:22)])),
+                 rowMeans(cbind(Alldata$F392[c(23:33)],Alldata$F392[c(34:44)])),
+                 rowMeans(cbind(Alldata$F392[c(45:55)],Alldata$F392[c(56:66)])))
+F392.sd = cbind(rowSd(cbind(Alldata$F392[c(1:11)],Alldata$F392[c(12:22)])),
+                 rowSd(cbind(Alldata$F392[c(23:33)],Alldata$F392[c(34:44)])),
+                 rowSd(cbind(Alldata$F392[c(45:55)],Alldata$F392[c(56:66)])))
+F392.md = cbind(rowMd(cbind(Alldata$F392[c(1:11)],Alldata$F392[c(12:22)])),
+                 rowMd(cbind(Alldata$F392[c(23:33)],Alldata$F392[c(34:44)])),
+                 rowMd(cbind(Alldata$F392[c(45:55)],Alldata$F392[c(56:66)])))
+
+F486.ave = cbind(rowMeans(cbind(Alldata$F486[c(1:11)],Alldata$F486[c(12:22)])),
+                 rowMeans(cbind(Alldata$F486[c(23:33)],Alldata$F486[c(34:44)])),
+                 rowMeans(cbind(Alldata$F486[c(45:55)],Alldata$F486[c(56:66)])))
+F486.sd = cbind(rowSd(cbind(Alldata$F486[c(1:11)],Alldata$F486[c(12:22)])),
+                 rowSd(cbind(Alldata$F486[c(23:33)],Alldata$F486[c(34:44)])),
+                 rowSd(cbind(Alldata$F486[c(45:55)],Alldata$F486[c(56:66)])))
+F486.md = cbind(rowMd(cbind(Alldata$F486[c(1:11)],Alldata$F486[c(12:22)])),
+                 rowMd(cbind(Alldata$F486[c(23:33)],Alldata$F486[c(34:44)])),
+                 rowMd(cbind(Alldata$F486[c(45:55)],Alldata$F486[c(56:66)])))
+
+#FDOM ~DON
+#Linear regression FDOM~DON
+F302.lm <- lm(c(F302.ave)~c(DON.ave)) #R2=0.32
+F340.lm <- lm(c(F340.ave)~c(DON.ave)) #R2=0.21
+F392.lm <- lm(c(F392.ave)~c(DON.ave)) #R2=0.44
+F486.lm <- lm(c(F486.ave)~c(DON.ave)) #R2=0.17
+
+#Figure S7. Was imported to inkscape to improve readability
+{
+  pdf(file = "./Figure S7.pdf", width=7, height=6, useDingbats = F)
+par(mfrow=c(2,2))
+plot(c(F302.ave)~c(DON.ave),
+     bg = c("white","#92c5de","black")[c(rep(1,11),rep(2,11),rep(3,11))],
+     pch=21,las=1,cex=1.5,
+     xlab = expression(DON~(mu*mol~L^-1)), ylab = expression(F[lambda*em]*302~(RU)))
+abline(F302.lm)
+plot(c(F340.ave)~c(DON.ave),
+     bg = c("white","#92c5de","black")[c(rep(1,11),rep(2,11),rep(3,11))],
+     pch=21,las=1,cex=1.5, ylim = c(0,0.15),
+     xlab = expression(DON~(mu*mol~L^-1)), ylab = expression(F[lambda*em]*340~(RU)))
+abline(F340.lm)
+plot(c(F392.ave)~c(DON.ave),
+     bg = c("white","#92c5de","black")[c(rep(1,11),rep(2,11),rep(3,11))],
+     pch=21,las=1,cex=1.5,
+     xlab = expression(DON~(mu*mol~L^-1)), ylab = expression(F[lambda*em]*392~(RU)))
+abline(F392.lm)
+plot(c(F486.ave)~c(DON.ave),
+     bg = c("white","#92c5de","black")[c(rep(1,11),rep(2,11),rep(3,11))],
+     pch=21,las=1,cex=1.5,
+     xlab = expression(DON~(mu*mol~L^-1)), ylab = expression(F[lambda*em]*340~(RU)))
+abline(F486.lm)
+dev.off()
+}
+
+##########################################NUTRIENT PLOT##############################
+#Combined with Figure S3-TDN in inkscape
+#Style of the star was changed in inkscape
+NH4.plot <- Alldata$NH4
+NH4.plot[NH4.plot<0]=0 #Some values were slightly negative (minimum of -0.13).
+{
+pdf(file = "./Figure S3-Nutrients.pdf", width=3.5, height=9, useDingbats = F)
+par(mfrow=c(3,1))
+par(mar=c(4,5,1,1))
+plot(Alldata$NO3~Alldata$Time, pch = 21, cex = 1.2, bg = c("black","#92c5de","white")[as.numeric(as.factor(Alldata$Mesocosme))], las = 1,
+     ylab = "Nitrate", xlab = "",
+     xlim = c(0,300), ylim = c(10.5,17))
+points(c(12.518,15.664,16.95)~c(0,0,0),
+       pch = 8,
+       col = c("red", "#92c5de", "black"))
+
+plot(Alldata$NO2~Alldata$Time, pch = 21, cex = 1.2, bg = c("black","#92c5de","white")[as.numeric(as.factor(Alldata$Mesocosme))], las = 1,
+     ylab = "Nitrite", xlab = "Incubation time",
+     xlim = c(0,300), ylim = c(0,1))
+points(c(0.054,0.008,0.006)~c(0,0,0),
+       pch = 8,
+       col = c("red", "#92c5de", "black"))
+plot(NH4.plot~Alldata$Time, pch = 21, cex = 1.2, bg = c("black","#92c5de","white")[as.numeric(as.factor(Alldata$Mesocosme))], las = 1,
+     ylab = "Ammonium", xlab ="Incubation time",
+     xlim = c(0,300))
+points(c(0.39,0.03,0.1)~c(0,0,0),
+       pch = 8,
+       col = c("red", "#92c5de", "black"))
+dev.off()
+}
+########################################AMINO ACIDS########################################
+######################################Mol% and concentration###############################
+#Plot mol% of each amino acid
+mol.pc <- matrix(nrow=66, ncol = 23)
+rownames(mol.pc) <- rownames(Alldata)
+colnames(mol.pc) <- colnames(Alldata)[c(18:40)]
+mol.aa <- mol.pc
+for(i in 1:ncol(mol.pc)){
+  mol.pc[,i] <- Alldata[,i+17]/Alldata$THAA_.nM.*100
+}
+
+#AA concentration
+for(i in 1:ncol(mol.aa)){
+  mol.aa[,i] <- Alldata[,i+17]
+}
+
+#Remove time points that are not measured for AA
+mol.pc <- mol.pc[-grep(pattern = "T61", rownames(mol.pc)),]
+mol.pc <- mol.pc[-grep(pattern = "T274", rownames(mol.pc)),]
+mol.pc <- mol.pc[-grep(pattern = "T548", rownames(mol.pc)),]
+
+mol.aa <- mol.aa[-grep(pattern = "T61", rownames(mol.aa)),]
+mol.aa <- mol.aa[-grep(pattern = "T274", rownames(mol.aa)),]
+mol.aa <- mol.aa[-grep(pattern = "T548", rownames(mol.aa)),]
+
+#Order from least abundant to most abundant
+mol.pc <- mol.pc[,order(colSums(mol.pc))]
+mol.aa <- mol.aa[,order(colSums(mol.aa))]
+
+#Group by depth
+mol.pc.surf <- mol.pc[c(1:16),]
+mol.pc.meso <- mol.pc[c(1:16)+16,]
+mol.pc.deep <- mol.pc[c(1:16)+16+16,]
+
+mol.aa.surf <- mol.aa[c(1:16),]
+mol.aa.meso <- mol.aa[c(1:16)+16,]
+mol.aa.deep <- mol.aa[c(1:16)+16+16,]
+  
+mol.pc.surf.ave <- rbind(colMeans(mol.pc.surf[c(1,9),]),colMeans(mol.pc.surf[c(2,10),]),colMeans(mol.pc.surf[c(3,11),]),colMeans(mol.pc.surf[c(4,12),]),colMeans(mol.pc.surf[c(5,13),]),colMeans(mol.pc.surf[c(6,14),]),colMeans(mol.pc.surf[c(7,15),]),colMeans(mol.pc.surf[c(8,16),]))
+mol.pc.meso.ave <- rbind(colMeans(mol.pc.meso[c(1,9),]),colMeans(mol.pc.meso[c(2,10),]),colMeans(mol.pc.meso[c(3,11),]),colMeans(mol.pc.meso[c(4,12),]),colMeans(mol.pc.meso[c(5,13),]),colMeans(mol.pc.meso[c(6,14),]),colMeans(mol.pc.meso[c(7,15),]),colMeans(mol.pc.meso[c(8,16),]))
+mol.pc.deep.ave <- rbind(colMeans(mol.pc.deep[c(1,9),]),colMeans(mol.pc.deep[c(2,10),]),colMeans(mol.pc.deep[c(3,11),]),colMeans(mol.pc.deep[c(4,12),]),colMeans(mol.pc.deep[c(5,13),]),colMeans(mol.pc.deep[c(6,14),]),colMeans(mol.pc.deep[c(7,15),]),colMeans(mol.pc.deep[c(8,16),]))
+
+mol.pc.surf.md <- rbind(colMd(mol.pc.surf[c(1,9),]),colMd(mol.pc.surf[c(2,10),]),colMd(mol.pc.surf[c(3,11),]),colMd(mol.pc.surf[c(4,12),]),colMd(mol.pc.surf[c(5,13),]),colMd(mol.pc.surf[c(6,14),]),colMd(mol.pc.surf[c(7,15),]),colMd(mol.pc.surf[c(8,16),]))
+mol.pc.meso.md <- rbind(colMd(mol.pc.meso[c(1,9),]),colMd(mol.pc.meso[c(2,10),]),colMd(mol.pc.meso[c(3,11),]),colMd(mol.pc.meso[c(4,12),]),colMd(mol.pc.meso[c(5,13),]),colMd(mol.pc.meso[c(6,14),]),colMd(mol.pc.meso[c(7,15),]),colMd(mol.pc.meso[c(8,16),]))
+mol.pc.deep.md <- rbind(colMd(mol.pc.deep[c(1,9),]),colMd(mol.pc.deep[c(2,10),]),colMd(mol.pc.deep[c(3,11),]),colMd(mol.pc.deep[c(4,12),]),colMd(mol.pc.deep[c(5,13),]),colMd(mol.pc.deep[c(6,14),]),colMd(mol.pc.deep[c(7,15),]),colMd(mol.pc.deep[c(8,16),]))
+
+#Recombine
+mol.pc.ave <- rbind(mol.pc.surf.ave,mol.pc.meso.ave,mol.pc.deep.ave)
+mol.pc.md <- rbind(mol.pc.surf.md,mol.pc.meso.md,mol.pc.deep.md)
+
+mol.aa.surf.ave <- rbind(colMeans(mol.aa.surf[c(1,9),]),colMeans(mol.aa.surf[c(2,10),]),colMeans(mol.aa.surf[c(3,11),]),colMeans(mol.aa.surf[c(4,12),]),colMeans(mol.aa.surf[c(5,13),]),colMeans(mol.aa.surf[c(6,14),]),colMeans(mol.aa.surf[c(7,15),]),colMeans(mol.aa.surf[c(8,16),]))
+mol.aa.meso.ave <- rbind(colMeans(mol.aa.meso[c(1,9),]),colMeans(mol.aa.meso[c(2,10),]),colMeans(mol.aa.meso[c(3,11),]),colMeans(mol.aa.meso[c(4,12),]),colMeans(mol.aa.meso[c(5,13),]),colMeans(mol.aa.meso[c(6,14),]),colMeans(mol.aa.meso[c(7,15),]),colMeans(mol.aa.meso[c(8,16),]))
+mol.aa.deep.ave <- rbind(colMeans(mol.aa.deep[c(1,9),]),colMeans(mol.aa.deep[c(2,10),]),colMeans(mol.aa.deep[c(3,11),]),colMeans(mol.aa.deep[c(4,12),]),colMeans(mol.aa.deep[c(5,13),]),colMeans(mol.aa.deep[c(6,14),]),colMeans(mol.aa.deep[c(7,15),]),colMeans(mol.aa.deep[c(8,16),]))
+
+mol.aa.surf.md <- rbind(colMd(mol.aa.surf[c(1,9),]),colMd(mol.aa.surf[c(2,10),]),colMd(mol.aa.surf[c(3,11),]),colMd(mol.aa.surf[c(4,12),]),colMd(mol.aa.surf[c(5,13),]),colMd(mol.aa.surf[c(6,14),]),colMd(mol.aa.surf[c(7,15),]),colMd(mol.aa.surf[c(8,16),]))
+mol.aa.meso.md <- rbind(colMd(mol.aa.meso[c(1,9),]),colMd(mol.aa.meso[c(2,10),]),colMd(mol.aa.meso[c(3,11),]),colMd(mol.aa.meso[c(4,12),]),colMd(mol.aa.meso[c(5,13),]),colMd(mol.aa.meso[c(6,14),]),colMd(mol.aa.meso[c(7,15),]),colMd(mol.aa.meso[c(8,16),]))
+mol.aa.deep.md <- rbind(colMd(mol.aa.deep[c(1,9),]),colMd(mol.aa.deep[c(2,10),]),colMd(mol.aa.deep[c(3,11),]),colMd(mol.aa.deep[c(4,12),]),colMd(mol.aa.deep[c(5,13),]),colMd(mol.aa.deep[c(6,14),]),colMd(mol.aa.deep[c(7,15),]),colMd(mol.aa.deep[c(8,16),]))
+
+#Recombine
+mol.aa.ave <- rbind(mol.aa.surf.ave,mol.aa.meso.ave,mol.aa.deep.ave)
+mol.aa.md <- rbind(mol.aa.surf.md,mol.aa.meso.md,mol.aa.deep.md)
+
+#Figure S8
+#Figure legend was modified in Inkscape
+{
+  pdf(file = "./Figure S8.pdf",width=8, height = 8)
+par(mfrow=c(2,1))
+par(mar=c(4,5,2,1))
+barcenter <- barplot(mol.pc.ave[-c(2:5,10:13,18:21),c(18,20,21,23)],beside = T,
+        ylab = "mol %",
+        las = 1,
+        ylim = c(0,35),
+        col = c("white","#92c5de","black")[c(rep(1,4),rep(2,4),rep(3,4))])
+arrows(barcenter, c(mol.pc.ave[-c(2:5,10:13,18:21),c(18,20,21,23)]) - c(mol.pc.md[-c(2:5,10:13,18:21),c(18,20,21,23)]),
+       barcenter, c(mol.pc.ave[-c(2:5,10:13,18:21),c(18,20,21,23)]) + c(mol.pc.md[-c(2:5,10:13,18:21),c(18,20,21,23)]),
+      angle = 90,
+      code = 3,
+      length = 0.05)
+legend("topleft", legend = c("Surface", "Mesopelagic", "Bathypelagic"),
+       pt.bg = c("white","#92c5de","black"), pch = 22, pt.cex = 1.5)
+mtext("A", side = 3, at = -2, line = 1.3)
+
+barcenter <- barplot(mol.aa.ave[-c(2:5,10:13,18:21),c(18,20,21,23)],beside = T,
+        ylab = expression(Concentration~(nmol~L^-1)),
+        ylim = c(0,450),
+        las = 1,
+        col = c("white","#92c5de","black")[c(rep(1,4),rep(2,4),rep(3,4))])
+arrows(barcenter, c(mol.aa.ave[-c(2:5,10:13,18:21),c(18,20,21,23)]) - c(mol.aa.md[-c(2:5,10:13,18:21),c(18,20,21,23)]),
+       barcenter, c(mol.aa.ave[-c(2:5,10:13,18:21),c(18,20,21,23)]) + c(mol.aa.md[-c(2:5,10:13,18:21),c(18,20,21,23)]),
+      angle = 90,
+      code = 3,
+      length = 0.05)
+mtext("B", side = 3, at = -2, line = 1.2)
+dev.off()
+}
+#####################################Degradation index##########################
+DI.ave = cbind(rowMeans(cbind(Alldata$DI[c(1:11)],Alldata$DI[c(12:22)])),
+                 rowMeans(cbind(Alldata$DI[c(23:33)],Alldata$DI[c(34:44)])),
+                 rowMeans(cbind(Alldata$DI[c(45:55)],Alldata$DI[c(56:66)]))) 
+DI.md = cbind(rowMd(cbind(Alldata$DI[c(1:11)],Alldata$DI[c(12:22)])),
+                 rowMd(cbind(Alldata$DI[c(23:33)],Alldata$DI[c(34:44)])),
+                 rowMd(cbind(Alldata$DI[c(45:55)],Alldata$DI[c(56:66)])))
+
+#Figure 2
+#This figure was assembled in Inkscape. This first pdf creates the insert Time 0 to Time 30
+#Below, the second pdf creates the right side of the figure, Time 0 to Time 547
+{
+  pdf(file = "./Figure 2-Left.pdf",width=3, height = 9.33, useDingbats = F)
+par(mfrow=c(4,1))
+par(mar=c(4,4.5,1,2)+.1)
+plot(c(F302.ave)~rep(c(0,4,7,  16,  21,  31,61,  92, 183,274, 548),3), 
+     bg = c("white","#92c5de","black")[c(rep(1,11),rep(2,11),rep(3,11))],
+     pch=c(21,22,23)[c(rep(1,11),rep(2,11),rep(3,11))],
+     las=1,
+     xlim = c(0,32),
+     ylim = c(0.01,0.1),
+     xlab = "", ylab = expression(F[lambda]*302~(RU)),
+     cex = 1.8, cex.lab = 1.5, cex.axis = 1.3)
+legend("topleft", legend = c("Surface", "Mesopelagic", "Bathypelagic"),
+       pt.bg = c("white","#92c5de","black"), pch = c(21,22,23), pt.cex = 2, cex=1)
+arrows(rep(c(0,4,7,  16,  21,  31,61,  92, 183,274, 548),3), c(F302.ave) - c(F302.md),
+       rep(c(0,4,7,  16,  21,  31,61,  92, 183,274, 548),3), c(F302.ave) + c(F302.md),
+       angle = 90,
+       code = 3,
+       length = 0.05)
+mtext("A", side=3, at = -5)
+plot(c(F340.ave)~rep(c(0,4,7,  16,  21,  31,61,  92, 183,274, 548),3), 
+     bg = c("white","#92c5de","black")[c(rep(1,11),rep(2,11),rep(3,11))],
+     pch=c(21,22,23)[c(rep(1,11),rep(2,11),rep(3,11))],
+     las=1,
+     xlim = c(0,32),
+     ylim = c(0.02,0.06),
+     ylab = expression(F[lambda]*340~(RU)), xlab = "",
+     cex = 1.8, cex.lab = 1.5, cex.axis = 1.3)
+arrows(rep(c(0,4,7,  16,  21,  31, 61, 92, 183,274, 548),3), c(F340.ave) - c(F340.md),
+       rep(c(0,4,7,  16,  21,  31, 61, 92, 183,274, 548),3), c(F340.ave) + c(F340.md),
+       angle = 90,
+       code = 3,
+       length = 0.05)
+
+mtext("B", side=3, at = -5)
+plot(c(F392.ave)~rep(c(0,4,7,  16,  21,  31,  61, 92, 183,274, 548),3), 
+     bg = c("white","#92c5de","black")[c(rep(1,11),rep(2,11),rep(3,11))],
+     pch=c(21,22,23)[c(rep(1,11),rep(2,11),rep(3,11))],
+     las=1,
+     ylim = c(0.005,0.08),
+     xlim = c(0,32),
+     ylab = expression(F[lambda]*392~(RU)), xlab = "Incubation time (days)",
+     cex = 1.8, cex.lab = 1.5, cex.axis = 1.3, yaxt = "n")
+axis(2, at = c(0.02,0.04,0.06,0.08), cex.axis = 1.3, las = 2)
+arrows(rep(c(0,4,7,  16,  21,  31,61,  92, 183,274, 548),3), c(F392.ave) - c(F392.md),
+       rep(c(0,4,7,  16,  21,  31, 61, 92, 183,274, 548),3), c(F392.ave) + c(F392.md),
+       angle = 90,
+       code = 3,
+       length = 0.05)
+mtext("C", side=3, at = -5)
+
+plot(c(F486.ave)~rep(c(0,4,7,  16,  21,  31,  61, 92, 183,274, 548),3), 
+     bg = c("white","#92c5de","black")[c(rep(1,11),rep(2,11),rep(3,11))],
+     pch=c(21,22,23)[c(rep(1,11),rep(2,11),rep(3,11))],
+     las=1,
+     ylim = c(0.005,0.1),
+     xlim = c(0,32),
+     ylab = expression(F[lambda]*486~(RU)), xlab = "Incubation time (days)",
+     cex = 1.8, cex.lab = 1.5, cex.axis = 1.3, yaxt = "n")
+axis(2, at = c(0.02,0.04,0.06,0.08), cex.axis = 1.3, las = 2)
+arrows(rep(c(0,4,7,  16,  21,  31,61,  92, 183,274, 548),3), c(F486.ave) - c(F486.md),
+       rep(c(0,4,7,  16,  21,  31, 61, 92, 183,274, 548),3), c(F486.ave) + c(F486.md),
+       angle = 90,
+       code = 3,
+       length = 0.05)
+mtext("D", side=3, at = -5)
+dev.off()
+}
+
+{
+  pdf(file = "./Figure 2-right.pdf",width=5, height = 9.33, useDingbats = F)
+par(mfrow=c(4,1))
+par(mar=c(4,4.5,1,2)+.1)
+plot(c(F302.ave)~rep(c(0,4,7,  16,  21,  31,61,  92, 183,274, 548),3), 
+     bg = c("white","#92c5de","black")[c(rep(1,11),rep(2,11),rep(3,11))],
+     pch=c(21,22,23)[c(rep(1,11),rep(2,11),rep(3,11))],
+     las=1,
+     xlim = c(0,550),
+     ylim = c(0.01,0.1),
+     xlab = "", ylab = expression(F[lambda]*302~(RU)),
+     cex = 1.5, cex.lab = 1.5, cex.axis = 1.3)
+arrows(rep(c(0,4,7,  16,  21,  31,61,  92, 183,274, 548),3), c(F302.ave) - c(F302.md),
+      rep(c(0,4,7,  16,  21,  31,61,  92, 183,274, 548),3), c(F302.ave) + c(F302.md),
+      angle = 90,
+      code = 3,
+      length = 0.05)
+mtext("A", side=3, at = -5)
+plot(c(F340.ave)~rep(c(0,4,7,  16,  21,  31,61,  92, 183,274, 548),3), 
+     bg = c("white","#92c5de","black")[c(rep(1,11),rep(2,11),rep(3,11))],
+     pch=c(21,22,23)[c(rep(1,11),rep(2,11),rep(3,11))],
+     las=1,
+     xlim = c(0,550),
+     ylim = c(0.01,0.2),
+     ylab = expression(F[lambda]*340~(RU)), xlab = "",
+     cex = 1.5, cex.lab = 1.5, cex.axis = 1.3)
+arrows(rep(c(0,4,7,  16,  21,  31, 61, 92, 183,274, 548),3), c(F340.ave) - c(F340.md),
+      rep(c(0,4,7,  16,  21,  31, 61, 92, 183,274, 548),3), c(F340.ave) + c(F340.md),
+      angle = 90,
+      code = 3,
+      length = 0.05)
+legend("topleft", legend = c("Surface", "Mesopelagic", "Bathypelagic"),
+       pt.bg = c("white","#92c5de","black"), pch = 21, pt.cex = 1.5)
+mtext("B", side=3, at = -5)
+plot(c(F392.ave)~rep(c(0,4,7,  16,  21,  31,  61, 92, 183,274, 548),3), 
+     bg = c("white","#92c5de","black")[c(rep(1,11),rep(2,11),rep(3,11))],
+     pch=c(21,22,23)[c(rep(1,11),rep(2,11),rep(3,11))],
+     las=1,
+     ylim = c(0.01,0.15),
+     xlim = c(0,550),
+     ylab = expression(F[lambda]*392~(RU)), xlab = "Incubation time (days)",
+     cex = 1.5, cex.lab = 1.5, cex.axis = 1.3, yaxt="n")
+axis(2, at=c(0.02,0.06,0.1,0.14), las = 2, cex.axis = 1.3)
+arrows(rep(c(0,4,7,  16,  21,  31,61,  92, 183,274, 548),3), c(F392.ave) - c(F392.md),
+      rep(c(0,4,7,  16,  21,  31, 61, 92, 183,274, 548),3), c(F392.ave) + c(F392.md),
+      angle = 90,
+      code = 3,
+      length = 0.05)
+mtext("C", side=3, at = -5)
+
+plot(c(F486.ave)~rep(c(0,4,7,  16,  21,  31,  61, 92, 183,274, 548),3), 
+     bg = c("white","#92c5de","black")[c(rep(1,11),rep(2,11),rep(3,11))],
+     pch=c(21,22,23)[c(rep(1,11),rep(2,11),rep(3,11))],
+     las=1,
+     ylim = c(0.01,0.15),
+     xlim = c(0,550),
+     ylab = expression(F[lambda]*486~(RU)), xlab = "Incubation time (days)",
+     cex = 1.5, cex.lab = 1.5, cex.axis = 1.3, yaxt="n")
+axis(2, at=c(0.02,0.06,0.1,0.14), las = 2, cex.axis = 1.3)
+arrows(rep(c(0,4,7,  16,  21,  31,61,  92, 183,274, 548),3), c(F486.ave) - c(F486.md),
+      rep(c(0,4,7,  16,  21,  31, 61, 92, 183,274, 548),3), c(F486.ave) + c(F486.md),
+      angle = 90,
+      code = 3,
+      length = 0.05)
+mtext("D", side=3, at = -5)
+dev.off()
+}
+
+#Figure 3
+#Imported in inkscape because the "minus" signs on the the left panels are partially hidden by the axis title
+{
+  pdf(file = "./Figure 3.pdf",width=12, height = 7, useDingbats = F)
+at1 <- seq(0, 200, 50)
+
+par(mfrow=c(3,2))
+par(mar=c(4,5.5,1.3,1)+.1)
+plot(Alldata$DI[Alldata$Mesocosme=="Surf"]~Alldata$Time[Alldata$Mesocosme=="Surf"],
+     pch = 21, bg = "white",
+     ylab = "", xlab = "",
+     xlim = c(0,200),  ylim = c(-1,2.5),
+      xaxt = "n",
+     las = 1, cex = 2, cex.lab = 2, cex.axis = 2.4)
+mtext(text = "A", side = 3,at = -5, cex = 1.3)
+axis(side =1, at1, labels = F)
+text(x = 17, y =  1.937, label="(")
+text(x = 25, y =  1.937, label=")")
+plot(Alldata$NTHAA[Alldata$Mesocosme=="Surf"]~Alldata$Time[Alldata$Mesocosme=="Surf"],
+     pch = 21, bg = "white",
+     ylab = "", xlab = "",
+     xlim = c(0,200), ylim = c(5,40),
+      xaxt = "n",
+      las = 1, cex = 2, cex.lab = 2, cex.axis = 2.4)
+axis(side =1, at1, labels = F)
+mtext(text = "B", side = 3,at = -5, cex = 1.3)
+
+plot(Alldata$DI[Alldata$Mesocosme=="Shallow"]~Alldata$Time[Alldata$Mesocosme=="Shallow"],
+     pch = 21, bg = "#92c5de",
+     ylab = "", xlab = "",
+     xlim = c(0,200), ylim = c(-1,2.5),
+      xaxt = "n",
+     las = 1, cex = 2, cex.lab = 2, cex.axis = 2.4)
+mtext(text = "C", side = 3,at = -5, cex = 1.3)
+mtext(text = "Degradation Index", side = 2, line = 3.8, cex = 1.7)
+text(x = 27, y =  2.31, label="(")
+text(x = 35, y =  2.31, label=")")
+axis(side =1, at1, labels = F)
+
+plot(Alldata$NTHAA[Alldata$Mesocosme=="Shallow"]~Alldata$Time[Alldata$Mesocosme=="Shallow"],
+     pch = 21, bg = "#92c5de",
+     ylab = "", xlab = "",
+     xlim = c(0,200), ylim = c(5,40),
+      xaxt = "n",
+      las = 1, cex = 2, cex.lab = 2, cex.axis = 2.4)
+axis(side =1, at1, labels = F)
+mtext(text = "D", side = 3,at = -5, cex = 1.3)
+mtext(text = expression(paste("%"*N[THAA])), side = 2, line = 3.5, cex = 1.8)
+text(x = 87.5, y =  36.6, label="(")
+text(x = 96, y =  36.6, label=")")
+
+text(x = 179, y =  31.033, label="(")
+text(x = 186.5, y =  31.033, label=")")
+
+
+plot(Alldata$DI[Alldata$Mesocosme=="Deep"]~Alldata$Time[Alldata$Mesocosme=="Deep"],
+     pch = 21, bg = "black",
+     ylab = "", xlab = "Incubation time (days)",
+     xlim = c(0,200), ylim = c(-1,2.5),
+     las = 1, cex = 2, cex.lab = 2.6, cex.axis = 2.4)
+mtext(text = "E", side = 3,at = -5, cex = 1.3)
+
+plot(Alldata$NTHAA[Alldata$Mesocosme=="Deep"]~Alldata$Time[Alldata$Mesocosme=="Deep"],
+     pch = 21, bg = "black",
+     ylab = "", xlab = "Incubation time (days)",
+     xlim = c(0,200), ylim = c(5,40),
+     las = 1, cex = 2, cex.lab = 2.6, cex.axis = 2.4)
+mtext(text = "F", side = 3,at = -5, cex = 1.3)
+
+ text(x = 1, y =  38.625, label="(")
+ text(x = 7, y =  38.625, label=")")
+legend("topright", legend = c("Surface", "Mesopelagic", "Bathypelagic"),
+       pt.bg = c("white","#92c5de","black"), pch = 21, pt.cex = 1.8, cex = 2)
+dev.off()
+}
+
+#Figure S9
+THAA.time <- Alldata$Time
+THAA.time[THAA.time==0] <- 2
+#We use the same trick here as with TDN to display time 0 on a log-axis
+#X-axis will be updated in Inkscape
+{
+  pdf(file = "./Figure S9.pdf", width=5, height=5, useDingbats = F)
+par(mar=c(4,5,3,1)+.1)
+plot(Alldata$THAA_.nM. ~ THAA.time,
+     las =1,
+     xlim = c(2,200),
+     xlab = "Incubation time (days)",
+     ylab = expression(THAA~(nmol~L^-1)),
+     pch = 21,
+     log = "x",
+     bg = c("black","#92c5de", "white")[as.numeric(as.factor(Alldata$Mesocosme))])
+legend("topleft", legend = c("Epipelagic", "Mesopelagic", "Bathypelagic"),
+       pch = 21, pt.bg = c("white","#92c5de","black"))
+dev.off()
+}
+
+########################################FTICRMS DATA######################################
+
+#Calculate C/N ratio of FTMS data
+FTMS=read.csv("./FTMS.csv", sep=",", header=T, row.names=1)
+#Reorder Colomn to put them From T0 to Tfinal
+FTMS = FTMS[,c("Molecular.Formula","Theor_mz","DBE","HC","OC","NC","C","H","N","O","S","AI","AImod","NOSC",
+                 "Count","Compound.category","Class","I3","G5", "F3","F1","D4","G9","F6", "E1", "G8","G3","I1",
+                 "G7","H1","E4","D8","F7","E7","D3","F4","D5","F2","G2","G6","H2","D6","D2","G4","E6","E8","H9",
+                 "H3","D7","E9","H5","E5","H7","F9","H8","D1","E3","H4","I2","F8","E2","D9","F5","H6","G1")]
+colnames(FTMS) = c("Molecular.Formula","Theor_mz","DBE","HC","OC","NC","C","H","N","O","S","AI","AImod","NOSC",
+                    "Count","Compound.category","Class","20m in situ","M1T4","M1T7","M1T15","M1T20","M1T30",
+                    "M1T90","M2T0","M2T7","M2T15","M2T20","M2T30","M2T90","M3T0","M3T7","M3T15","M3T30","M4T0",
+                    "M4T4","M4T7","M4T15","M4T20","M4T30","M4T90","M5T0","M5T4","M5T7","M5T15","M5T20","M5T30",
+                    "M5T90","M6T0","M6T4","M6T7","M6T15","M6T20","M6T30","M6T90","M7T4","M7T20","M7T30","M7T90",
+                    "M8T0","M8T4","M8T7","M8T15","M8T20","M8T90")
+FTMS = cbind(FTMS[,c(1:17)], round(FTMS[,c(18:65)],digits = 8))
+
+#Estimate the overall CN ratio of all molecular formulae together. Needs to be done like this and not a weigthed average of individual CN ratios because molecular formulae without N would have an infinite ratio, and thus an infinite overall CN ratio would be calculated.
+C.FTMS <- matrix(nrow = 6850, ncol = 37)
+for(i in 1:37){
+  C.FTMS[,i] <- FTMS$C*FTMS[,i+18]
+}
+
+N.FTMS <- matrix(nrow=6850, ncol = 37)
+for(i in 1:37){
+  N.FTMS[,i] <- FTMS$N*FTMS[,i+18]
+}
+
+CN.FTMS <- colSums(C.FTMS)/colSums(N.FTMS)
+names(CN.FTMS) <- colnames(C.FTMS) <- colnames(N.FTMS) <- colnames(FTMS[c(19:55)])
+
+#Select MF that contains N
+C.FTMS.Nsub <- vector(length = 37)
+for(i in 1:37){
+  C.FTMS.Nsub[i] <- sum(FTMS$C[FTMS$N>0]*FTMS[FTMS$N>0,i+18])
+}
+
+N.FTMS.Nsub <- vector(length = 37)
+for(i in 1:37){
+  N.FTMS.Nsub[i] <- sum(FTMS$N[FTMS$N>0]*FTMS[FTMS$N>0,i+18])
+}
+
+O.FTMS.Nsub <- vector(length = 37)
+for(i in 1:37){
+  O.FTMS.Nsub[i] <- sum(FTMS$O[FTMS$N>0]*FTMS[FTMS$N>0,i+18])
+}
+
+OC.FTMS.Nsub.mean <- vector(length = 37)
+for(i in 1:37){
+  OC.FTMS.Nsub.mean[i] <- sum(FTMS$OC[FTMS$N>0]*FTMS[FTMS$N>0,i+18])/sum(FTMS[FTMS$N>0,i+18])
+}
+HC.FTMS.Nsub.mean <- vector(length = 37)
+for(i in 1:37){
+  HC.FTMS.Nsub.mean[i] <- sum(FTMS$HC[FTMS$N>0]*FTMS[FTMS$N>0,i+18])/sum(FTMS[FTMS$N>0,i+18])
+}
+FTMS$CN <- FTMS$C / FTMS$N
+CN.FTMS.Nsub.mean <- vector(length = 37)
+for(i in 1:37){
+  CN.FTMS.Nsub.mean[i] <- sum(FTMS$CN[FTMS$N>0]*FTMS[FTMS$N>0,i+18])/sum(FTMS[FTMS$N>0,i+18])
+}
+
+CN.FTMS.Nsub <- C.FTMS.Nsub/N.FTMS.Nsub
+OC.FTMS.Nsub <- O.FTMS.Nsub/C.FTMS.Nsub
+
+names(CN.FTMS.Nsub) <- names(C.FTMS.Nsub) <- names(N.FTMS.Nsub) <- colnames(FTMS[c(19:55)])
+
+CN.FT.ave = cbind(rowMeans(cbind(CN.FTMS[c(7,1:6)],CN.FTMS[c(7,1,8:12)])),
+                 rowMeans(cbind(CN.FTMS[c(13,18,14,15,21,16,23)],CN.FTMS[c(17,18,14,20:23)])),
+                 rowMeans(cbind(CN.FTMS[c(24,25,33,27:30)],CN.FTMS[c(31,25,33,27,35:37)]))) 
+CN.FT.md = cbind(rowMd(cbind(CN.FTMS[c(7,1:6)],CN.FTMS[c(7,1,8:12)])),
+                 rowMd(cbind(CN.FTMS[c(13,18,14,15,21,16,23)],CN.FTMS[c(17,18,14,20:23)])),
+                 rowMd(cbind(CN.FTMS[c(24,25,33,27:30)],CN.FTMS[c(31,25,33,27,35:37)]))) 
+
+CN.FT.Nsub.ave = cbind(rowMeans(cbind(CN.FTMS.Nsub[c(7,1:6)],CN.FTMS.Nsub[c(7,1,8:12)])),
+                 rowMeans(cbind(CN.FTMS.Nsub[c(13,18,14,15,21,16,23)],CN.FTMS.Nsub[c(17:23)])),
+                 rowMeans(cbind(CN.FTMS.Nsub[c(24:30)],CN.FTMS.Nsub[c(31,25,33,27,35:37)]))) 
+CN.FT.Nsub.md = cbind(rowMd(cbind(CN.FTMS.Nsub[c(7,1:6)],CN.FTMS.Nsub[c(7,1,8:12)])),
+                 rowMd(cbind(CN.FTMS.Nsub[c(13,18,14,15,21,16,23)],CN.FTMS.Nsub[c(17:23)])),
+                 rowMd(cbind(CN.FTMS.Nsub[c(24:30)],CN.FTMS.Nsub[c(31,25,33,27,35:37)]))) 
+
+#CN ratio of MF
+summary(CN.FTMS[c(1:12)]) #Surf
+sd(CN.FTMS[c(1:12)]) #Surf
+# Min: 159.7, Max: 343, Mean: 234.8 sd: 61.9
+
+summary(CN.FTMS[c(13:23)][-7]) #Meso
+sd(CN.FTMS[c(13:23)][-7]) 
+# Min: 154.9, Max: 494.8, Mean: 225 sd: 99.0
+
+summary(CN.FTMS[c(24:37)][-c(3,9,11)]) #bathy
+sd(CN.FTMS[c(24:37)][-c(3,9,11)]) 
+# Min: 169.9, Max: 304.4, Mean: 200.8 sd: 39.7
+
+summary(CN.FTMS[-c(19,26,32,34)]) #Global
+sd(CN.FTMS[-c(19,26,32,34)]) 
+# Min: 154.9, Max: 494.8, Mean: 220.5 sd: 69
+
+#CN ratio of MF
+summary(CN.FTMS.Nsub[c(1:12)]) #Surf
+sd(CN.FTMS.Nsub[c(1:12)]) #Surf
+# Min: 18.34, Max: 20.50, Mean: 19.54 sd: 0.65
+
+summary(CN.FTMS.Nsub[c(13:23)]) #Meso
+sd(CN.FTMS.Nsub[c(13:23)]) 
+# Min: 18.05, Max: 19.98, Mean: 19.16 sd: 0.55
+
+summary(CN.FTMS.Nsub[c(24:37)][-c(9,11)]) #Bathy
+sd(CN.FTMS.Nsub[c(24:37)][-c(9,11)]) 
+# Min: 18.61, Max: 20.48, Mean: 19.48 sd: 0.57
+
+summary(CN.FTMS.Nsub[-c(32,34)]) #Global
+sd(CN.FTMS.Nsub[-c(32,34)]) #Global
+# Min: 18.05, Max: 20.5, Mean: 19.40 sd: 0.60
+
+#ANOVA between early OC and late OC
+early.OC <- OC.FTMS.Nsub.mean[c(7,13,17,24,31)]
+late.OC <- OC.FTMS.Nsub.mean[c(12,23,30,37)]
+OC.mat.short <- data.frame(OC = c(early.OC, late.OC),
+                     Source = c(rep("Early",5), rep("Late",4)))
+OC.aov <- aov(OC~Source, data = OC.mat.short)
+OC.tukey <- TukeyHSD(OC.aov)
+OC.ttest <- t.test(OC~Source, data = OC.mat.short)
+
+
+
+####################Comparing all MF to N-MF only#################
+FTMS.summary = read.csv("./summary_table_N-only.csv", sep=";", header=T, row.names=1)
+FTMS.summary$ID <- substr(rownames(FTMS.summary),1,2)
+FTMS.summary$Time <- as.numeric(substr(rownames(FTMS.summary),4,8))
+FTMS.summary <- FTMS.summary[-46,]
+FTMS.summary <- FTMS.summary[order(FTMS.summary$Time),]
+FTMS.summary <- FTMS.summary[order(FTMS.summary$ID),]
+FTMS.summary <- FTMS.summary[,c(33,34,1:32)]
+rownames(FTMS.summary) <- paste0(FTMS.summary$ID, "T", FTMS.summary$Time)
+
+FTMS.summary.all = read.csv("./summary_table.csv", sep=";", header=T)
+FTMS.summary.all <- FTMS.summary.all[order(FTMS.summary.all$Time),]
+FTMS.summary.all <- FTMS.summary.all[order(FTMS.summary.all$ID),]
+
+
+Comp.ft = FTMS.summary
+Comp.ft = Comp.ft[c(which(Comp.ft[,2]==0),which(Comp.ft[,2]==90)),]
+Comp.ft.all = FTMS.summary.all
+Comp.ft.all = Comp.ft.all[c(which(Comp.ft.all[,2]==0),which(Comp.ft.all[,2]==90)),]
+
+aliphatics.all = Comp.ft.all[,15] + Comp.ft.all[,16]
+unsat.HO.all = Comp.ft.all[,19]
+unsat.LO.all = Comp.ft.all[,20]
+peptides.all = Comp.ft.all[,21]
+polyphenols.all = (Comp.ft.all[,22] + Comp.ft.all[,23])
+
+Comp.all = t(cbind(aliphatics.all,unsat.HO.all,unsat.LO.all,peptides.all,polyphenols.all))
+
+
+Comp.all.ave = cbind(Comp.all[,1],
+                 rowMeans(cbind(Comp.all[,2],Comp.all[,3])),
+                 rowMeans(cbind(Comp.all[,4],Comp.all[,5])),
+                 rowMeans(cbind(Comp.all[,7],Comp.all[,8])),
+                 Comp.all[,9],
+                 rowMeans(cbind(Comp.all[,10],Comp.all[,11])))
+Comp.all.sd = cbind(0,
+                 rowSd(cbind(Comp.all[,2],Comp.all[,3])),
+                 rowSd(cbind(Comp.all[,4],Comp.all[,5])),
+                 rowSd(cbind(Comp.all[,7],Comp.all[,8])),
+                 0,
+                 rowSd(cbind(Comp.all[,10],Comp.all[,11])))
+Comp.all.md = cbind(0,
+                 rowMd(cbind(Comp.all[,2],Comp.all[,3])),
+                 rowMd(cbind(Comp.all[,4],Comp.all[,5])),
+                 rowMd(cbind(Comp.all[,7],Comp.all[,8])),
+                 0,
+                 rowMd(cbind(Comp.all[,10],Comp.all[,11])))
+
+
+unsat.HO.pc = Comp.ft[,3]/Comp.ft.all$Num.formula_no*100
+unsat.LO.pc = Comp.ft[,4]/Comp.ft.all$Num.formula_no*100
+peptides.pc = Comp.ft[,5]/Comp.ft.all$Num.formula_no*100
+polyphenols.pc = (Comp.ft[,6] + Comp.ft[,7])/Comp.ft.all$Num.formula_no*100
+
+Comp.pc = t(cbind(unsat.HO.pc,unsat.LO.pc,peptides.pc,polyphenols.pc))
+
+
+Comp.pc.ave = cbind(Comp.pc[,1],
+                 rowMeans(cbind(Comp.pc[,2],Comp.pc[,3])),
+                 rowMeans(cbind(Comp.pc[,4],Comp.pc[,5])),
+                 rowMeans(cbind(Comp.pc[,7],Comp.pc[,8])),
+                 Comp.pc[,9],
+                 rowMeans(cbind(Comp.pc[,10],Comp.pc[,11])))
+Comp.pc.sd = cbind(0,
+                 rowSd(cbind(Comp.pc[,2],Comp.pc[,3])),
+                 rowSd(cbind(Comp.pc[,4],Comp.pc[,5])),
+                 rowSd(cbind(Comp.pc[,7],Comp.pc[,8])),
+                 0,
+                 rowSd(cbind(Comp.pc[,10],Comp.pc[,11])))
+Comp.pc.md = cbind(0,
+                 rowMd(cbind(Comp.pc[,2],Comp.pc[,3])),
+                 rowMd(cbind(Comp.pc[,4],Comp.pc[,5])),
+                 rowMd(cbind(Comp.pc[,7],Comp.pc[,8])),
+                 0,
+                 rowMd(cbind(Comp.pc[,10],Comp.pc[,11])))
+
+colnames(Comp.all.ave) <- colnames(Comp.pc.ave) <- c("S0", "M0", "B0", "S92", "M92", "B92")
+colnames(Comp.all.sd) <- colnames(Comp.pc.sd) <- colnames(Comp.all.ave)
+col.comp = c("#C7144C","#FFD700","#C742B5","#33a02c")
+col.comp.all = c("#73BAE6","#C7144C","#FFD700","#C742B5","#33a02c")
+
+#Add a row of 0 to match bars width
+Comp.pc.ave <- rbind(0,Comp.pc.ave)
+Comp.pc.md <- rbind(0,Comp.pc.md)
+
+#Figure S10
+{
+  pdf("./Figure S10.pdf", width = 10, height = 10)
+  par(mfrow=c(2,1))
+barcenter<- barplot(Comp.all.ave[,c(1,4,2,5,3,6)],
+        beside = T,
+         ylim = c(0,60),
+        col = col.comp.all,
+        las = 1,
+        ylab = "Assigned molecular formulas (%)",
+        xlab = "Incubation time (days)",
+        names.arg = c(0, 92, 0, 92, 0, 92))
+
+  arrows(barcenter, Comp.all.ave[,c(1,4,2,5,3,6)] - Comp.all.md[,c(1,4,2,5,3,6)],
+         barcenter, Comp.all.ave[,c(1,4,2,5,3,6)] + Comp.all.md[,c(1,4,2,5,3,6)],
+         angle = 90,
+         code = 3,
+         length = 0.05)
+  
+    legend("top",
+         legend = c("Aliphatics", "Unsaturated, high oxygen", "Unsaturated, low oxygen", "Peptides","Polyphenols"),
+          fill = col.comp.all[c(1,2,3,4,5)],
+         ncol = 3,
+         bty = "n")
+
+  barcenter<- barplot(Comp.pc.ave[,c(1,4,2,5,3,6)],
+        beside = T,
+        ylim = c(0,15),
+        col = col.comp.all,
+        las = 1,
+        ylab = "Assigned molecular formulas (%)",
+        xlab = "Incubation time (days)",
+        names.arg = c(0, 92, 0, 92, 0, 92))
+
+  arrows(barcenter, Comp.pc.ave[,c(1,4,2,5,3,6)] - Comp.pc.md[,c(1,4,2,5,3,6)],
+         barcenter, Comp.pc.ave[,c(1,4,2,5,3,6)] + Comp.pc.md[,c(1,4,2,5,3,6)],
+         angle = 90,
+         code = 3,
+         length = 0.05)
+  dev.off()
+}
+
+
+
+MySub = FTMS.summary.all[,"ID"] %in% c("M1", "M2", "M3", "M4", "M5", "M6")
+FTMS.sub = FTMS.summary.all[MySub,]
+#Order by ID and time
+FTMS.sub <- FTMS.sub[order(FTMS.sub$Time),]
+FTMS.sub <- FTMS.sub[order(FTMS.sub$ID),]
+
+#Create objects with single columns for easier data exploration
+N.atoms <- FTMS.sub$N
+CHON <- FTMS.sub$CHON_no
+CHON_pc <- FTMS.sub$CHON_percent
+Peptides <- FTMS.sub$Peptide_like_no
+Peptides_pc <- FTMS.sub$Peptide_like_percent
+
+delta = as.data.frame(matrix(NA,nrow=length(FTMS[,1]),ncol=44))
+nom_col = c("OC","HC","N", "S", "Theor_mz","M1T7","M1T15","M1T20","M1T30", "M1T90",
+                    "M2T7","M2T15","M2T20","M2T30", "M2T90",
+                    "M3T7","M3T15", "M3T30",
+                    "M4T4","M4T7","M4T15","M4T20","M4T30","M4T90",
+                    "M5T4","M5T7","M5T15","M5T20","M5T30", "M5T90",
+                    "M6T4","M6T7","M6T15","M6T20","M6T30","M6T90",
+                    "M7T20","M7T30", "M7T90",
+                    "M8T4","M8T7","M8T15","M8T20", "M8T90")
+colnames(delta) = nom_col
+attach(FTMS)
+
+#calculate deltas
+  delta$OC = OC
+  delta$HC = HC
+  delta$N = N
+  delta$S = S
+  delta$Theor_mz = Theor_mz
+  delta$M1T7 <- (M1T7 - M1T4)/M1T4
+  delta$M1T15 <- (M1T15 - M1T4)/M1T4 
+  delta$M1T20 <- (M1T20 - M1T4)/M1T4 
+  delta$M1T30 <- (M1T30 - M1T4)/M1T4 
+  delta$M1T90 <- (M1T90 - M1T4)/M1T4 
+  
+  delta$M2T7 <- (M2T7 - M2T0)/M2T0
+  delta$M2T15 <- (M2T15 - M2T0)/M2T0 
+  delta$M2T20 <- (M2T20 - M2T0)/M2T0 
+  delta$M2T30 <- (M2T30 - M2T0)/M2T0 
+  delta$M2T90 <- (M2T90 - M2T0)/M2T0 
+  
+  delta$M3T7 <- (M3T7 - M3T0)/M3T0
+  delta$M3T15 <- (M3T15 - M3T0)/M3T0 
+  delta$M3T30 <- (M3T30 - M3T0)/M3T0 
+  
+  delta$M4T4 <- (M4T4 - M4T0)/M4T0 
+  delta$M4T7 <- (M4T7 - M4T0)/M4T0
+  delta$M4T15 <- (M4T15 - M4T0)/M4T0 
+  delta$M4T20 <- (M4T20 - M4T0)/M4T0 
+  delta$M4T30 <- (M4T30 - M4T0)/M4T0 
+  delta$M4T90 <- (M4T90 - M4T0)/M4T0 
+  
+  delta$M5T4 <- (M5T4 - M5T0)/M5T0 
+  delta$M5T7 <- (M5T7 - M5T0)/M5T0
+  delta$M5T15 <- (M5T15 - M5T0)/M5T0 
+  delta$M5T20 <- (M5T20 - M5T0)/M5T0 
+  delta$M5T30 <- (M5T30 - M5T0)/M5T0 
+  delta$M5T90 <- (M5T90 - M5T0) /M5T0
+  
+  delta$M6T4 <- (M6T4 - M6T0)/M6T0 
+  delta$M6T7 <- (M6T7 - M6T0)/M6T0
+  delta$M6T15 <- (M6T15 - M6T0)/M6T0 
+  delta$M6T20 <- (M6T20 - M6T0)/M6T0 
+  delta$M6T30 <- (M6T30 - M6T0)/M6T0 
+  delta$M6T90 <- (M6T90 - M6T0) /M6T0
+  
+  delta$M7T20 <- (M7T20 - M7T4)/M7T4 
+  delta$M7T30 <- (M7T30 - M7T4)/ M7T4 
+  delta$M7T90 <- (M7T90 - M7T4) /M7T4
+  
+  delta$M8T4 <- (M8T4 - M8T0)/M8T0 
+  delta$M8T7 <- (M8T7 - M8T0)/M8T0
+  delta$M8T15 <- (M8T15 - M8T0)/M8T0 
+  delta$M8T20 <- (M8T20 - M8T0)/M8T0 
+  delta$M8T90 <- (M8T90 - M8T0) /M8T0
+
+#Change NAs for zeros
+for(j in 6:44)
+{
+  for(i in 1:6850)
+  {
+    if(is.na(delta[i,j] == -2)) delta[i,j]=0
+  }
+}
+  
+#Change values higher than 1 (often infinity when X/0) to 1
+for(j in 6:44)
+{
+  for(i in 1:6850)
+  {
+    if(delta[i,j] >= 2) delta[i,j]=2 #Old palette was >=1 set to 1
+  }
+}
+
+#Figure 4, bottom row.
+#The full figure consist of 7 different pdf files that were assembled in Inkscape 
+main.text = c("Epi92", "Meso92", "Bathy92")
+{
+  pdf("./Figure 4DEF.pdf",width = 9.31,height = 3.566666)
+  par(mfrow=c(1,3))
+  par(mar = c(5, 5, 4, 0)+0.1)
+  par(oma=c( 0,0,0,5))
+  for(k in 1:3)
+  {
+    if(k==1) i = 15
+    if(k==2) i = 24
+    if(k==3) i = 30
+    #set the color ramp and apply the color ramp
+    delta=delta[order(delta[,i]),]
+    my.color.ramp.fct<-colorRamp(c("blue4","blue3","blue","turquoise4","turquoise2","white","yellow","orange","orange3","orangered","orangered3","red")) 
+    as.rgb.channels<-my.color.ramp.fct(decostand(delta[,i],method="range"))
+    Spear.color<-rgb(as.rgb.channels,maxColorValue=255) 
+    
+        plot(delta$OC[delta[,i] !=0 & delta$N>00],
+         delta$HC[delta[,i] !=0 & delta$N!=0],
+         pch=21,
+         bg=Spear.color[delta[,i]!= 0 & delta$N>0],
+         xlab="O/C",
+         ylab="H/C",
+         xlim=c(0.2,.9),
+         ylim=c(0.7,1.7),
+         lwd=0.75,
+         cex.main=1.8,
+         cex.lab=1.8,
+         cex.axis = 1.8,
+         cex = 1.5,
+         las=1)
+        mtext(text = c("D", "E", "F")[k], side = 3, at = 0, cex = 1.4)
+ if(k==3)
+ {
+    par(oma=c( 0,0,0,2)) #resize your right margin to include the legend
+    image.plot(legend.only=TRUE, legend.line=2.7, zlim=range(c(delta[,i])), col=colorRampPalette(c("blue4","blue3","blue","turquoise4","turquoise2","white","yellow","orange","orange3","orangered","orangered3","red"))(256)) #plot color scale 
+ }
+  }
+  dev.off()
+}
+
+#Below is the code for figure 4 top row
+Fig4FT=read.csv("./FTMS.csv", sep=",", header=T, row.names=1)
+
+#M2T0
+{
+my.color.ramp.fct<-colorRamp(c("white", "Gray50", "Gray15", "purple","blue", "skyblue","turquoise","chartreuse3", "green", "yellow","orange","orangered", "red", "darkred"))
+as.rgb.channels<-my.color.ramp.fct(decostand(Fig4FT$E1[Fig4FT$E1>0 & Fig4FT$N>0],method="range"))
+Spear.color<-rgb(as.rgb.channels,maxColorValue=255)
+Fig4FT=Fig4FT[order(Fig4FT$E1),]
+
+pdf("./Figure 4A1.pdf", width = 5, height = 5, useDingbats = F)
+par(mar = c(5, 5, 4, 0)+0.1)
+par(oma=c( 0,0,0,5)) 
+plot(Fig4FT$OC[Fig4FT$E1>0 & Fig4FT$N>0],Fig4FT$HC[Fig4FT$E1>0 & Fig4FT$N>0], pch=21, 
+     bg=Spear.color[rank(Fig4FT$E1[Fig4FT$E1>0 & Fig4FT$N>0])], xlab="O/C", ylab="H/C",
+     xlim=c(0.2,.9),ylim=c(0.7,1.7), lwd=0.75, font.main=20, font.lab=20,
+     cex = 1.5)  
+
+par(oma=c( 0,0,0,0)) #resize your right margin to include the legend
+image.plot(legend.only=TRUE, legend.line=2.7, 
+           zlim=range(Fig4FT$E1[Fig4FT$E1>0 & Fig4FT$N>0]), 
+           col=colorRampPalette(c("white", "Gray50", "Gray15", "purple","blue",
+                                  "skyblue","turquoise","chartreuse3", "green",
+                                  "yellow","orange","orangered", "red", "darkred"))(256))
+
+dev.off()
+#M2T90
+as.rgb.channels<-my.color.ramp.fct(decostand(Fig4FT$H1[Fig4FT$H1>0 & Fig4FT$N>0],method="range"))
+Spear.color<-rgb(as.rgb.channels,maxColorValue=255)
+
+
+Fig4FT=Fig4FT[order(Fig4FT$H1),]
+pdf("./Figure 4A2.pdf", width = 5, height = 5, useDingbats = F)
+par(mar = c(5, 5, 4, 0)+0.1)
+par(oma=c( 0,0,0,5)) 
+plot(Fig4FT$OC[Fig4FT$H1>0 & Fig4FT$N>0],Fig4FT$HC[Fig4FT$H1>0 & Fig4FT$N>0], pch=21, 
+     bg=Spear.color[rank(Fig4FT$H1[Fig4FT$H1>0 & Fig4FT$N>0])], xlab="O/C", ylab="H/C",
+     xlim=c(0.2,.9),ylim=c(0.7,1.7), lwd=0.75, font.main=20, font.lab=20,
+     cex = 1.5)  
+par(oma=c( 0,0,0,0)) #resize your right margin to include the legend
+image.plot(legend.only=TRUE, legend.line=2.7, 
+           zlim=range(Fig4FT$H1[Fig4FT$H1>0 & Fig4FT$N>0]), 
+           col=colorRampPalette(c("white", "Gray50", "Gray15", "purple","blue",
+                                  "skyblue","turquoise","chartreuse3", "green",
+                                  "yellow","orange","orangered", "red", "darkred"))(256))
+
+dev.off()
+#M4T0
+as.rgb.channels<-my.color.ramp.fct(decostand(Fig4FT$D3[Fig4FT$D3>0 & Fig4FT$N>0],method="range"))
+Spear.color<-rgb(as.rgb.channels,maxColorValue=255)
+
+Fig4FT=Fig4FT[order(Fig4FT$D3),]
+pdf("./Figure 4B1.pdf", width = 5, height = 5, useDingbats = F)
+par(mar = c(5, 5, 4, 0)+0.1)
+par(oma=c( 0,0,0,5)) 
+plot(Fig4FT$OC[Fig4FT$D3>0 & Fig4FT$N>0],Fig4FT$HC[Fig4FT$D3>0 & Fig4FT$N>0], pch=21, 
+     bg=Spear.color[rank(Fig4FT$D3[Fig4FT$D3>0 & Fig4FT$N>0])], xlab="O/C", ylab="H/C",
+     xlim=c(0.2,.9),ylim=c(0.7,1.7), lwd=0.75, font.main=20, font.lab=20,
+     cex=1.5)  
+par(oma=c( 0,0,0,0)) #resize your right margin to include the legend
+image.plot(legend.only=TRUE, legend.line=2.7, 
+           zlim=range(Fig4FT$D3[Fig4FT$D3>0 & Fig4FT$N>0]), 
+           col=colorRampPalette(c("white", "Gray50", "Gray15", "purple","blue",
+                                  "skyblue","turquoise","chartreuse3", "green",
+                                  "yellow","orange","orangered", "red", "darkred"))(256))
+dev.off()
+
+#M4T90
+as.rgb.channels<-my.color.ramp.fct(decostand(Fig4FT$H2[Fig4FT$H2>0 & Fig4FT$N>0],method="range"))
+Spear.color<-rgb(as.rgb.channels,maxColorValue=255)
+
+Fig4FT=Fig4FT[order(Fig4FT$H2),]
+pdf("./Figure 4B2.pdf", width = 5, height = 5, useDingbats = F)
+par(mar = c(5, 5, 4, 0)+0.1)
+par(oma=c( 0,0,0,5)) 
+plot(Fig4FT$OC[Fig4FT$H2>0 & Fig4FT$N>0],Fig4FT$HC[Fig4FT$H2>0 & Fig4FT$N>0], pch=21, 
+     bg=Spear.color[rank(Fig4FT$H2[Fig4FT$H2>0 & Fig4FT$N>0])], xlab="O/C", ylab="H/C",
+     xlim=c(0.2,.9),ylim=c(0.7,1.7), lwd=0.75, font.main=20, font.lab=20,
+     cex = 1.5) 
+par(oma=c( 0,0,0,0)) #resize your right margin to include the legend
+image.plot(legend.only=TRUE, legend.line=2.7, 
+           zlim=range(Fig4FT$H2[Fig4FT$H2>0 & Fig4FT$N>0]), 
+           col=colorRampPalette(c("white", "Gray50", "Gray15", "purple","blue",
+                                  "skyblue","turquoise","chartreuse3", "green",
+                                  "yellow","orange","orangered", "red", "darkred"))(256))
+dev.off()
+
+#M5T0
+as.rgb.channels<-my.color.ramp.fct(decostand(Fig4FT$D6[Fig4FT$D6>0 & Fig4FT$N>0],method="range"))
+Spear.color<-rgb(as.rgb.channels,maxColorValue=255)
+Fig4FT=Fig4FT[order(Fig4FT$D6),]
+pdf("./Figure 4C1.pdf", width = 5, height = 5, useDingbats = F)
+par(mar = c(5, 5, 4, 0)+0.1)
+par(oma=c( 0,0,0,5)) 
+plot(Fig4FT$OC[Fig4FT$D6>0 & Fig4FT$N>0],Fig4FT$HC[Fig4FT$D6>0 & Fig4FT$N>0], pch=21, 
+     bg=Spear.color[rank(Fig4FT$D6[Fig4FT$D6>0 & Fig4FT$N>0])], xlab="O/C", ylab="H/C",
+     xlim=c(0.2,.9),ylim=c(0.7,1.7), lwd=0.75, font.main=20, font.lab=20,
+     cex=1.5)  
+par(oma=c( 0,0,0,0)) #resize your right margin to include the legend
+image.plot(legend.only=TRUE, legend.line=2.7, 
+           zlim=range(Fig4FT$D6[Fig4FT$D6>0 & Fig4FT$N>0]), 
+           col=colorRampPalette(c("white", "Gray50", "Gray15", "purple","blue",
+                                  "skyblue","turquoise","chartreuse3", "green",
+                                  "yellow","orange","orangered", "red", "darkred"))(256))
+dev.off()
+#M5T90
+
+as.rgb.channels<-my.color.ramp.fct(decostand(Fig4FT$H3[Fig4FT$H3>0 & Fig4FT$N>0],method="range"))
+Spear.color<-rgb(as.rgb.channels,maxColorValue=255)
+Fig4FT=Fig4FT[order(Fig4FT$H3),]
+pdf("./Figure 4C2.pdf", width = 5, height = 5, useDingbats = F)
+par(mar = c(5, 5, 4, 0)+0.1)
+par(oma=c( 0,0,0,5)) 
+plot(Fig4FT$OC[Fig4FT$H3>0 & Fig4FT$N>0],Fig4FT$HC[Fig4FT$H3>0 & Fig4FT$N>0], pch=21, 
+     bg=Spear.color[rank(Fig4FT$H3[Fig4FT$H3>0 & Fig4FT$N>0])], xlab="O/C", ylab="H/C",
+     xlim=c(0.2,.9),ylim=c(0.7,1.7), lwd=0.75, font.main=20, font.lab=20,
+     cex=1.5) 
+par(oma=c( 0,0,0,0)) #resize your right margin to include the legend
+image.plot(legend.only=TRUE, legend.line=2.7, 
+           zlim=range(Fig4FT$H3[Fig4FT$H3>0 & Fig4FT$N>0]), 
+           col=colorRampPalette(c("white", "Gray50", "Gray15", "purple","blue",
+                                            "skyblue","turquoise","chartreuse3", "green",
+                                            "yellow","orange","orangered", "red", "darkred"))(256))
+dev.off()
+}
+
+
+```
+
+#Figure S5 and S6
+```{r}
+prok.mean = read.csv("./prok.mean132.csv", row.names = 1)
+attach(prok.mean)
+
+prok.mean = prok.mean[-which(rowSums(prok.mean)==0),]
+
+freq.table.mean <- t(apply(prok.mean, 2, function(x){x/sum(x)})) #Transform abundance in frequence
+
+#Create objects for barplots
+Verruco.pointer = grep("Verruco",colnames(freq.table.mean))
+Verrucomicrobia.all = freq.table.mean[,Verruco.pointer] #All Verruco
+Verrucomicrobia = rowSums(Verrucomicrobia.all)
+# Verrucomicrobia.ASV = apply(Verrucomicrobia.all, 1, function(x) length(which(x!=0)))
+
+Plancto.pointer = grep("Planctomy",colnames(freq.table.mean))
+Planctomycetes.all = freq.table.mean[,Plancto.pointer]#All Plancto
+Planctomycetes = rowSums(Planctomycetes.all)
+# Planctomycetes.ASV = apply(Planctomycetes.all, 1, function(x) length(which(x!=0)))
+
+Pelagibacter.pointer = grep("Pelagibacter",colnames(freq.table.mean))
+Pelagibacter.all = freq.table.mean[,Pelagibacter.pointer] #Some Alpha
+Pelagibacter = rowSums(Pelagibacter.all)
+# Pelagibacter.ASV = apply(Pelagibacter.all, 1, function(x) length(which(x!=0)))
+SAR11_deep.pointer = grep("SAR11_clade_Deep",colnames(freq.table.mean))
+SAR11_deep.all = freq.table.mean[,SAR11_deep.pointer] #Some Alpha
+SAR11_deep = rowSums(SAR11_deep.all)
+# SAR11_deep.ASV = apply(SAR11_deep.all, 1, function(x) length(which(x!=0)))
+Rhodo.pointer = grep("Rhodobact",colnames(freq.table.mean))
+Rhodobacteraceae.all = freq.table.mean[,Rhodo.pointer] #Some Alpha
+Rhodobacteraceae = rowSums(Rhodobacteraceae.all)
+# Rhodobacteraceae.ASV = apply(Rhodobacteraceae.all, 1, function(x) length(which(x!=0)))
+
+
+OtherAplha.pointer = grep("Alphaproteo",colnames(freq.table.mean))
+OtherAplha.pointer = OtherAplha.pointer[!OtherAplha.pointer %in% Pelagibacter.pointer]
+OtherAplha.pointer = OtherAplha.pointer[!OtherAplha.pointer %in% SAR11_deep.pointer]
+OtherAplha.pointer = OtherAplha.pointer[!OtherAplha.pointer %in% Rhodo.pointer]
+OtherAlphaproteobacteria.all = freq.table.mean[,OtherAplha.pointer]
+OtherAlphaproteobacteria = rowSums(OtherAlphaproteobacteria.all)
+# OtherAlphaproteobacteria.ASV = apply(OtherAlphaproteobacteria.all, 1, function(x) length(which(x!=0)))
+
+
+Beta.pointer = grep("Betaproteo",colnames(freq.table.mean))
+Betaproteo.all = freq.table.mean[,Beta.pointer] #All betaproteo
+Betaproteobacteria = rowSums(Betaproteo.all)
+# Betaproteobacteria.ASV = apply(Betaproteo.all, 1, function(x) length(which(x!=0)))
+
+Colwe.pointer = grep("Colwellia",colnames(freq.table.mean))
+Colwelliaceae.all = freq.table.mean[,Colwe.pointer] #some Gamma
+Colwelliaceae = rowSums(Colwelliaceae.all)
+# Colwelliaceae.ASV = apply(Colwelliaceae.all, 1, function(x) length(which(x!=0)))
+
+Pseudo.pointer = grep("Pseudoaltero",colnames(freq.table.mean))
+Pseudoalteromonas.all = freq.table.mean[,Pseudo.pointer] #some Gamma
+Pseudoalteromonas =rowSums(Pseudoalteromonas.all)
+# Pseudoalteromonas.ASV = apply(Pseudoalteromonas.all, 1, function(x) length(which(x!=0)))
+
+OtherGamma.pointer = grep("Gammaproteo",colnames(freq.table.mean))
+OtherGamma.pointer = OtherGamma.pointer[!OtherGamma.pointer %in% Colwe.pointer]
+OtherGamma.pointer = OtherGamma.pointer[!OtherGamma.pointer %in% Pseudo.pointer]
+OtherGammaproteobacteria.all = freq.table.mean[,OtherGamma.pointer]
+OtherGammaproteobacteria = rowSums(OtherGammaproteobacteria.all)
+# OtherGammaproteobacteria.ASV = apply(OtherGammaproteobacteria.all, 1, function(x) length(which(x!=0)))
+
+
+Thaum.pointer = grep("Thaumarcha",colnames(freq.table.mean))
+Thaumarchaeota.all = freq.table.mean[,Thaum.pointer] #All Thaumar
+Thaumarchaeota = rowSums(Thaumarchaeota.all)
+# Thaumarchaeota.ASV = apply(Thaumarchaeota.all, 1, function(x) length(which(x!=0)))
+
+Eury.pointer = grep("Euryarcha",colnames(freq.table.mean))
+Euryarchaeota.all = freq.table.mean[,Eury.pointer] #All Euryar
+Euryarchaeota = rowSums(Euryarchaeota.all)
+# Euryarchaeota.ASV = apply(Euryarchaeota.all, 1, function(x) length(which(x!=0)))
+
+Polari.pointer = grep("Polari",colnames(freq.table.mean))
+Polari.all = freq.table.mean[,Polari.pointer] #Some Bacteroidetes
+Polaribacter = rowSums(Polari.all)
+# Polaribacter.ASV = apply(Polari.all, 1, function(x) length(which(x!=0)))
+
+OtherBacter.pointer = grep("Bacteroide",colnames(freq.table.mean))
+OtherBacter.pointer = OtherBacter.pointer[!OtherBacter.pointer %in% Polari.pointer]
+OtherBacteroidetes.all = freq.table.mean[,OtherBacter.pointer]
+OtherBacteroidetes = rowSums(OtherBacteroidetes.all)
+# OtherBacteroidetes.ASV = apply(OtherBacteroidetes.all, 1, function(x) length(which(x!=0)))
+
+Cyano.pointer = grep("Cyanob",colnames(freq.table.mean))
+Cyano.all = freq.table.mean[,Cyano.pointer] #Some Bacteroidetes
+Cyanobacteria = rowSums(Cyano.all)
+# Polaribacter.ASV = apply(Polari.all, 1, function(x) length(which(x!=0)))
+
+#Merge all objects together
+Time = c(0,4,7,16,21,31,92,183,0,4,7,16,21,31,92,183,0,4,7,16,21,31,92,183)
+
+Barplot.div.data = t(cbind(Time,Cyanobacteria,
+                         Verrucomicrobia, Planctomycetes, Pelagibacter,
+                         Polaribacter,
+                         SAR11_deep, Rhodobacteraceae, Colwelliaceae,
+                         Pseudoalteromonas, Thaumarchaeota, Euryarchaeota,
+                         Betaproteobacteria, OtherAlphaproteobacteria,
+                         OtherGammaproteobacteria, OtherBacteroidetes))
+Barplot.div.data = Barplot.div.data[,order(Barplot.div.data[1,], decreasing = F)]
+
+Barplot.div.data = rbind(Barplot.div.data, Other=c(1 - colSums(Barplot.div.data[-1,])))
+
+barplot.space = c(0.25,0.25,0.25,1, 0.25,0.25,1, 0.25,0.25,1, 0.25,0.25,1, 0.25,0.25,1, 0.25,0.25,1, 0.25,0.25,1, 0.25,0.25)
+barplot.names = c(NA,0,NA, NA,4,NA, NA,7,NA, NA,16,NA, NA,21,NA, NA,31,NA, NA,92,NA, NA,183,NA)
+
+barplot.col = c("black","#9BBB59", "Light green", "Cyan",
+                "hotpink",
+                "Light blue", "#73BAE6", "indianred1",
+                "Magenta", "Chartreuse 3", "Dark green",
+                "darkseagreen1", "#002060",
+                "#C7144C", "lightpink", "White")
+
+#Repeat previous steps but with flow cytemotry corrected reads abundance
+Cor.prok <- read.csv("./Cor.prok132.csv", header=T, row.names=1, sep=",")
+temp = as.data.frame(t(Cor.prok))
+temp = temp[,-c(1:3,51:66)]
+
+Alldata = read.csv("./data.csv", sep = ";", row.names = 1)
+BA = Alldata$Cyto
+names(BA) = rownames(Alldata)
+BA.temp = colnames(temp)
+BA.temp = c(BA.temp[1:22],"M3T92",BA.temp[23:47])
+BA = BA[names(BA) %in% BA.temp]
+
+BA.mean = vector(length=24)
+for(i in 1:8){
+  BA.mean[i] = (BA[i]+BA[i+8])/2
+}
+for(i in 17:24){
+  BA.mean[i-8] = (BA[i]+BA[i+8])/2
+}
+for(i in 33:40){
+  BA.mean[i-16] = (BA[i]+BA[i+8])/2
+}
+
+BA.md = BA.mean
+for(i in 1:8){
+  BA.md[i] = madstat(c(BA[i],BA[i+8]))
+}
+for(i in 9:16){
+  BA.md[i] = madstat(c(BA[i+8],BA[i+16]))
+}
+for(i in 17:24){
+  BA.md[i] = madstat(c(BA[i+16],BA[i+24]))
+}
+
+names(BA.mean) = c("Epi0", "Epi4", "Epi7", "Epi16", "Epi21", "Epi31", "Epi92", "Epi183",
+                   "Meso0", "Meso4", "Meso7", "Meso16", "Meso21", "Meso31", "Meso92", "Meso183",
+                    "Bathy0", "Bathy4", "Bathy7", "Bathy16", "Bathy21", "Bathy31", "Bathy92", "Bathy183")
+#Reorder BA to match rel abundance matrix order
+BA.mean = BA.mean[c(1,9,17,2,10,18,3,11,19,4,12,20,5,13,21,6,14,22,7,15,23,8,16,24)]
+
+Barplot.abs.data = t(t(Barplot.div.data) * BA.mean)
+
+#Figure S5
+{
+pdf("./Figure S5.pdf", height = 8, width = 24)
+par(mfrow=c(1,3))
+par(mar=c(4,5,1,1)+.1)
+
+barplot(Barplot.div.data[-1,],
+        names.arg = barplot.names, space = barplot.space,
+        ylab = "Proportion", xlab = "Incubation time (days)",
+        las = 1, ylim = c(0,1),
+        col = barplot.col,
+        cex.axis = 1.5,
+        cex.names = 1.5,
+        cex.lab = 1.5)
+mtext("a", side = 3, at = 0, cex = 1.4)
+
+barplot(BA.mean,
+        names.arg = barplot.names, space = barplot.space,
+        ylab = expression(Abundance~(cells~mL^-1)), xlab = "Incubation time (days)",
+        las = 1,
+        ylim = c(0,1.2*10^6),
+        col = rep(c("white","#92c5de","black"),8),
+        cex.axis = 1.5,
+        cex.names = 1.5,
+        cex.lab = 1.5)
+mtext("b", side = 3, at = 0, cex = 1.4)
+
+arrows(c(0.75,2,3.25, 5.25,6.5,7.75, 9.75,11,12.25, 14.25,15.5,16.75, 18.75,20,21.25, 23.25,24.5,25.75, 27.75,29,30.25, 32.25,33.5,34.75), BA.mean - BA.md,
+      c(0.75,2,3.25, 5.25,6.5,7.75, 9.75,11,12.25, 14.25,15.5,16.75, 18.75,20,21.25, 23.25,24.5,25.75, 27.75,29,30.25, 32.25,33.5,34.75), BA.mean + BA.md,
+      angle = 90,
+      code = 3,
+      length = 0.05)
+ 
+#This is only to get the legend for panel A. Figure will be assembled in Inkscape
+barplot(Barplot.div.data[-1,],
+        names.arg = barplot.names, space = barplot.space,
+        ylab = "Proportion", xlab = "Incubation time (days)",
+        las = 1, ylim = c(0,1),
+        col = barplot.col,
+        legend.text = rownames(Barplot.div.data)[-1])
+
+#NOTE. PANEL C IN THE SI FIGURE IS A REPRINT FROM LABRIE ET AL. 2022. SOURCE CODE CAN BE FOUND ON GITHUB. FIGURE WAS PASTED IN INKSCAPE AND COLOURS UPDATED TO MATCH THIS COLOUR PALETTE
+#THIS FIGURE WAS SIGNIFICANTLY REWORKED IN INKSCAPE TO IMPROVE VISUAL
+dev.off()     
+}
+
+
+#Microbial N demand
+BA_N <- BA.mean*1000*35*10^-15/14/(10^-6)
+BA_N <- BA_N[c(c(1,4,7,10,13,16,19,22),c(1,4,7,10,13,16,19,22)+1,c(1,4,7,10,13,16,19,22)+2)]
+
+#Figure S6
+#This figure was saved using the "export" button above the plot window and printed as is in the SI
+par(mar=c(4,5,3,2))
+plot(BA_N~rep(c(0,4,7,16,21,31,92,183),3), pch = 21,
+     bg = c(rep("white",8), rep("#92c5de",8), rep("black",8)),
+     xlab = "Incubation time (days)",
+     ylab = expression(Bacterial~N~(mu*mol~L^-1)),
+     las = 1)
+legend("topright", legend = c("Surface", "Mesopelagic", "Bathypelagic"),
+       pt.bg = c("white","#92c5de","black"), pch = 21, pt.cex = 1.3)
+```
+
+#Code and data for figure S11
+```{R}
+KochFTMS <- read.table("./KochFTMS.txt", header=T)
+LechFTMS <- read.table("./LechtenfeldFTMS.txt", header = T)
+FTMS=read.csv("./FTMS.csv", sep=",", header=T, row.names=1)
+
+#Reorder Colomn to put them From T0 to Tfinal
+FTMS = FTMS[,c("Molecular.Formula","Theor_mz","DBE","HC","OC","NC","C","H","N","O","S","AI","AImod","NOSC",
+               "Count","Compound.category","Class","I3","G5", "F3","F1","D4","G9","F6", "E1", "G8","G3","I1",
+               "G7","H1","E4","D8","F7","E7","D3","F4","D5","F2","G2","G6","H2","D6","D2","G4","E6","E8","H9",
+               "H3","D7","E9","H5","E5","H7","F9","H8","D1","E3","H4","I2","F8","E2","D9","F5","H6","G1")]
+colnames(FTMS) = c("Molecular.Formula","Theor_mz","DBE","HC","OC","NC","C","H","N","O","S","AI","AImod","NOSC",
+                   "Count","Compound.category","Class","20m in situ","M1T4","M1T7","M1T15","M1T20","M1T30",
+                   "M1T90","M2T0","M2T7","M2T15","M2T20","M2T30","M2T90","M3T0","M3T7","M3T15","M3T30","M4T0",
+                   "M4T4","M4T7","M4T15","M4T20","M4T30","M4T90","M5T0","M5T4","M5T7","M5T15","M5T20","M5T30",
+                   "M5T90","M6T0","M6T4","M6T7","M6T15","M6T20","M6T30","M6T90","M7T4","M7T20","M7T30","M7T90",
+                   "M8T0","M8T4","M8T7","M8T15","M8T20","M8T90")
+FTMS = cbind(FTMS[,c(1:17)], round(FTMS[,c(18:65)],digits = 8))
+
+FTMS.test <- FTMS
+FTMS.test <- FTMS.test[grep("N1S0",FTMS.test$Molecular.Formula),]
+FTMS.test.sub <- FTMS.test[rowSums(FTMS.test[,c(18:55)])>0,]
+
+LechFTMS.sub <- LechFTMS[LechFTMS$measurement_name=="AO_high^SPE_DI",]
+myCol <- brewer.pal(3, "Pastel1")
+
+#Percentages of shared molecular formulae were added using Inkscape
+venn.diagram(
+  x = list(FTMS.test.sub$Molecular.Formula, KochFTMS[,1], LechFTMS.sub$MF),
+  category.names = c("This study" , "Koch study" , "Lechtenfeld study"),
+  filename = "./Figure S11.jpg", main = "Shared N-MF",
+  output=TRUE,
+  height = 680 , 
+  width = 680 , 
+  resolution = 300,
+  lwd = 2,
+  lty = 'blank',
+  fill = myCol,
+  cex = .6,
+  fontface = "bold",
+  cat.cex = 0.6,
+  cat.fontface = "bold",
+  cat.default.pos = "outer",
+  cat.pos = c(-27, 27, 135),
+  cat.dist = c(0.055, 0.055, 0.085)
+)
+```
